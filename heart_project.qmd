@@ -1,0 +1,70 @@
+---
+title: "Heart Transplant Project - LA's BeST 2026"
+author: "Jesus Rodriguez, Sydney Shimizu, Julia Aptekar"
+format: html
+---
+
+```{r setup,  output = F, message = F, warning= F}
+library(tidyverse)
+library(readxl)
+library(kableExtra)
+```
+
+# Loading in Data
+
+```{r, output = F, message = F, warning= F}
+heart_data <- read_csv("data/LAsBEST26_SUBSET.csv", col_select = -1)
+
+# if needed here is the data dictionary
+data_dictionary <- read_xlsx("data/STAR Files Data Dictionary.xlsx", skip = 1, sheet = 6)
+data_dictionary <- read_xlsx("data/STAR Files Data Dictionary.xlsx", skip = 1, sheet = 1)
+
+# note <- read_xlsx("data/STAR Files Data Dictionary.xlsx", n_max = 1, col_names = F)
+```
+
+# Data Cleaning
+
+```{r}
+# Checking structure
+str(heart_data)
+
+# Checking to see spread of certain variables to see if they are categorical or not
+heart_data %>% 
+  count(UNOS_CAND_STAT_CD)
+
+heart_data %>% 
+  count(REM_CD_NEW)
+
+heart_data %>% 
+  count(FTIME)
+```
+
+```{r}
+heart_data <- 
+  heart_data %>%
+  mutate(
+    across(
+      c(WL_ID_CODE, #ID
+        WLREG_AUDIT_ID_CODE, #ID 
+        UNOS_CAND_STAT_CD_WAITLIST, 
+        UNOS_CAND_STAT_CD, EXCEPTION, 
+        REM_CD_NEW, 
+        FSTATUS, 
+        GENDER, 
+        ETHCAT, 
+        BTYPE_REC, 
+        DIAB),
+      as.factor
+    ),
+    across(
+      c(FTIME, 
+        INIT_BMI_NEW, 
+        INIT_AGE),
+      as.numeric
+    )
+  )
+  
+```
+
+
+
