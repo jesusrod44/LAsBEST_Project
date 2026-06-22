@@ -1,0 +1,198 @@
+---
+title: "heart.analysis"
+author: "Sydney Shimizu"
+format: html
+editor: visual
+---
+
+## Exploratory Analysis
+
+```{r}
+heart<-read.csv("C:/Users/12063/Downloads/LAsBEST26_SUBSET(in).csv")
+
+# Investigate Data Structure
+str(heart)
+head(heart)
+
+# Recode Variables to Factors from Numeric
+heart$ETHCAT<-factor(heart$ETHCAT)
+heart$DIAB<-factor(heart$DIAB)
+heart$REM_CD_NEW<-factor(heart$REM_CD_NEW)
+heart$UNOS_CAND_STAT_CD_WAITLIST<-factor(heart$UNOS_CAND_STAT_CD_WAITLIST)
+
+# Double Check to See if Changes Were Made
+str(heart)
+levels(heart$FSTATUS)
+
+sort(unique(heart$UNOS_CAND_STAT_CD_WAITLIST))
+
+```
+
+```{r}
+
+library(dplyr)
+
+heart$INIT_DATE<-as.Date(heart$INIT_DATE, format="%m/%d/%Y")
+heart$CHG_DATE<-as.Date(heart$CHG_DATE,format="%m/%d/%Y")
+
+# Landmark Time = 7 days #
+heart$DAY7_DATE <- heart$INIT_DATE + 7
+
+#Recode UNOS_WAIT code to match up with STATUS#
+heart <- heart %>%
+  dplyr::mutate(
+    INITIAL_STATUS = dplyr::case_when(
+      UNOS_CAND_STAT_CD_WAITLIST == 2110 ~ 1,
+      UNOS_CAND_STAT_CD_WAITLIST == 2120 ~ 2,
+      UNOS_CAND_STAT_CD_WAITLIST == 2130 ~ 3,
+      UNOS_CAND_STAT_CD_WAITLIST == 2140 ~ 4,
+      UNOS_CAND_STAT_CD_WAITLIST == 2150 ~ 5,
+      UNOS_CAND_STAT_CD_WAITLIST == 2160 ~ 6,
+      TRUE ~ NA_real_
+    )
+  )
+
+#Recode UNOS code to match up with STATUS#
+heart <- heart %>%
+  dplyr::mutate(
+    FINAL_STATUS = dplyr::case_when(
+      UNOS_CAND_STAT_CD == 2110 ~ 1,
+      UNOS_CAND_STAT_CD == 2120 ~ 2,
+      UNOS_CAND_STAT_CD == 2130 ~ 3,
+      UNOS_CAND_STAT_CD == 2140 ~ 4,
+      UNOS_CAND_STAT_CD == 2150 ~ 5,
+      UNOS_CAND_STAT_CD == 2160 ~ 6,
+      TRUE ~ NA_real_
+    )
+  )
+
+# Defining Stable and Escalated Groups #
+
+heart <- heart %>%
+  dplyr::filter(FINAL_STATUS==2)
+ 
+
+# Defining Stable and Escalated Groups #
+
+heart <- heart %>%
+  mutate(
+    ESCALATED = case_when(
+      # Stable: 2->2
+      INITIAL_STATUS == 2 & FINAL_STATUS == 2 ~ 0,
+
+      # Escalated: 3–6->2
+      INITIAL_STATUS %in% 3:6 & FINAL_STATUS == 2 ~ 1,
+
+      # Everyone else excluded
+      TRUE ~ NA_real_
+    )
+  )
+table(heart$ESCALATED, useNA = "ifany")
+
+
+# Creating a var for time from listing to event
+heart$DAYS_DIFF <- as.numeric(heart$CHG_DATE - heart$INIT_DATE)
+
+# Time since landmark (7 days)
+heart <- heart %>%
+  mutate(
+    TIME_FROM_LANDMARK = DAYS_DIFF - 7
+  )
+
+# Setting the 30 day horizon time
+heart <- heart %>%
+  mutate(
+    TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
+    EVENT_30 = ifelse(TIME_FROM_LANDMARK >= 0 & TIME_FROM_LANDMARK <= 30, 1, 0),
+
+    # Exclude events before landmark
+    TIME_30  = ifelse(TIME_FROM_LANDMARK < 0, NA, TIME_30),
+    EVENT_30 = ifelse(TIME_FROM_LANDMARK < 0, NA, EVENT_30)
+  )
+
+# DESCRIPTIVE STATISTICS #
+
+install.packages("tableone")
+library(tableone)
+names(heart)
+
+vars<-c("INIT_AGE","INIT_BMI_NEW","GENDER","ETHCAT","BTYPE_REC","EXCEPTION","DIABETES","EVENT_30")
+
+catVars<-c("GENDER","ETHCAT","BTYPE_REC","EXCEPTION","DIABETES","EVENT_30")
+
+table1<-CreateTableOne(
+  vars = vars,
+  strata = "ESCALATED",
+  data = heart,
+  factorVars = catVars
+)
+
+print(table1, showAllLevels = TRUE, test=TRUE)
+
+# CIF PLOT #
+
+install.packages("survminer")
+library(cmprsk)
+library(survminer)
+library(dplyr)
+
+# Compare Cumulative Incidence of Death/Deterioration and Cumulative Incidence of Heart Transplantation
+
+heart <- heart %>%
+  mutate(
+    EVENT_TYPE = case_when(
+      # Death / deterioration
+      REM_CD_NEW %in% c(8, 9, 13, 21, 23) ~ 1,
+      
+      # Transplanted (deceased or living donor)
+      REM_CD_NEW %in% c(3, 4, 15, 18, 19, 22) ~ 2, 
+      
+      # Censor everyone else
+      TRUE ~ 0
+    )
+  )
+
+table(heart$EVENT_TYPE)
+length(heart$EVENT_TYPE)
+
+
+library(survminer)
+
+# Creating CIF plot
+library(cmprsk)
+heart <- heart %>%
+  mutate(
+    EXPOSURE = case_when(
+      STATUS_DAY7 == 2 ~ 0,   # stable
+      STATUS_DAY7 == 1 ~ 1,   # escalated
+      TRUE ~ NA_real_
+    )
+  )
+
+# Remove missing
+
+heart_clean <- heart %>%
+  filter(!is.na(EXPOSURE), !is.na(EVENT_TYPE))
+
+# Creating CIF plot
+cif_fit <- cuminc(
+  ftime   = heart_clean$TIME_30,
+  fstatus = heart_clean$EVENT_TYPE,
+  group   = heart_clean$EXPOSURE
+)
+
+heart_clean$EXPOSURE <- factor(heart_clean$EXPOSURE, levels = c(0,1))
+
+ggcompetingrisks(
+  fit = cif_fit,
+  multiple_panels = FALSE,
+  palette = c("#E69F00", "#56B4E9"),
+  legend.labs = c("Death/Deterioration", "Transplanted")
+) +
+  scale_linetype_manual(values = c("0" = "dotted", "1" = "solid")) +
+  theme_bw()
+
+
+```
+
+## 
