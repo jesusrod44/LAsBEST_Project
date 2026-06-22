@@ -5,9 +5,10 @@ format: html
 ---
 
 ```{r setup,  output = F, message = F, warning= F}
-library(tidyverse)
-library(readxl)
-library(kableExtra)
+library(tidyverse) # general tidying and manipulation
+library(readxl) # reading xlsx files
+library(kableExtra) # nice tables
+library(lubridate) # easier working with dates
 ```
 
 # Loading in Data
@@ -37,7 +38,10 @@ heart_data %>%
 
 heart_data %>% 
   count(FTIME)
+
+names(heart_data)
 ```
+Formatting columns
 
 ```{r}
 heart_data <- 
@@ -61,10 +65,43 @@ heart_data <-
         INIT_BMI_NEW, 
         INIT_AGE),
       as.numeric
+    ),
+    across(
+      c(INIT_DATE,
+        CHG_DATE,
+        END_DATE_NEW
+      ),
+      as_date
     )
   )
   
 ```
 
+# Using a landmark date of 7 days, define two groups
 
+```{r}
+heart_data <- 
+  heart_data %>% 
+  mutate(
+    landmark_date = 
+      INIT_DATE + weeks(1)
+  )
+  
+```
+
+## Defining "Stable"
+
+Individuals who were listed at status 2 and were status 2 at day 7
+
+```{r}
+
+heart_data %>% 
+  mutate(
+    STATUS = 
+      if_else(
+        
+      )
+  )
+
+```
 
