@@ -116,9 +116,9 @@ install.packages("tableone")
 library(tableone)
 names(heart)
 
-vars<-c("INIT_AGE","INIT_BMI_NEW","GENDER","ETHCAT","BTYPE_REC","EXCEPTION","DIABETES","EVENT_30")
+vars<-c("INIT_AGE","INIT_BMI_NEW","GENDER","ETHCAT","BTYPE_REC","EXCEPTION","DIAB","EVENT_30")
 
-catVars<-c("GENDER","ETHCAT","BTYPE_REC","EXCEPTION","DIABETES","EVENT_30")
+catVars<-c("GENDER","ETHCAT","BTYPE_REC","EXCEPTION","DIAB","EVENT_30")
 
 table1<-CreateTableOne(
   vars = vars,
@@ -163,8 +163,8 @@ library(cmprsk)
 heart <- heart %>%
   mutate(
     EXPOSURE = case_when(
-      STATUS_DAY7 == 2 ~ 0,   # stable
-      STATUS_DAY7 == 1 ~ 1,   # escalated
+      ESCALATED == 0 ~ 0,   # stable
+      ESCALATED == 1 ~ 1,   # escalated
       TRUE ~ NA_real_
     )
   )
