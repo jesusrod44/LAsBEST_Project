@@ -14,21 +14,14 @@ library(lubridate)
 ## Data Loading
 ```{r}
 heart <- read.csv("data/LAsBEST26_SUBSET.csv")
+heart <- heart %>% select(-X)
 ```
 
 ## Data Cleaning
-### Recoding variables to factors
-```{r}
-heart$ETHCAT<-factor(heart$ETHCAT)
-heart$DIAB<-factor(heart$DIAB)
-heart$REM_CD_NEW<-factor(heart$REM_CD_NEW)
-heart$UNOS_CAND_STAT_CD_WAITLIST<-factor(heart$UNOS_CAND_STAT_CD_WAITLIST)
-```
-
 ### Changing date variables to R Date objects
 ```{r}
 heart$INIT_DATE<-as.Date(heart$INIT_DATE, format="%m/%d/%Y")
-heart$CHG_DATE<-as.Date(heart$CHG_DATE,format="%m/%d/%Y")
+heart$CHG_DATE<-as.Date(heart$CHG_DATE, format="%m/%d/%Y")
 ```
 
 ### Setting landmark time of 7 days
