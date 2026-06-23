@@ -130,14 +130,14 @@ heart_data <-
   arrange(WL_ID_CODE, CHG_DATE)
 ```
 
-## Defining "Stable"
+## Filtering our cohort
 
 
-Individuals who were listed at status 2 and were status 2 at day 7
+Individuals who were listed were status 2 at day 7
 
 ```{r}
 heart_data2 <- 
-heart_data %>%
+  heart_data %>%
   group_by(WL_ID_CODE) %>%
   mutate(
     keep_in_study = 
@@ -172,21 +172,34 @@ counts_joined <- full_join(
 ) %>% 
   filter(!is.na(n_heart_data2)) %>% 
   mutate(equal = n_heart_data == n_heart_data2)
+```
+
+Checking whether we are missing data with counts_joined$equal == FALSE, we can see that this argument is FALSE for all observations, meaning that we are not missing any data with this filter. 
+
+
+
+```{r}
+heart_data <- heart_data2
+```
+
+
+## Removing individuals who were status 1, but then changed to status 2 before the landmark date
+
+```{r}
+heart_data %>%
+  group_by(WL_ID_CODE) %>%
+  mutate(
+    keep_in_study = 
+      if_else(
+        (INITIAL_STATUS == 1 & FINAL_STATUS == 2 & CHG_DATE < landmark_date),
+        "NO",
+        "YES"
+      )
+  ) %>% 
   
-```
-
-Unique ID codes
-
-```{r}
-heart_data %>% 
-  distinct(WL_ID_CODE)
-
-heart_data2 %>% 
-  distinct(WL_ID_CODE)
-```
-
-```{r}
-heart_data2 %>% 
-  filter(WL_ID)
+  filter(
+    any(keep_in_study == "YES")
+    ) %>% 
+  arrange(WL_ID_CODE)
 ```
 
