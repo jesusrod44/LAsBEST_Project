@@ -41,6 +41,7 @@ heart_data %>%
 
 names(heart_data)
 ```
+
 ## Formatting columns
 
 ```{r}
@@ -79,6 +80,8 @@ heart_data <-
 
 ## Cleaning Priority Status
 
+Planning to clean `FINAL_STATUS` later, as at times in the data, it doesn't really reflect the actual "final" status a patient had when they were last seen
+
 ```{r}
 #Recode UNOS_WAIT code to match up with STATUS#
 heart_data <- heart_data %>%
@@ -108,7 +111,11 @@ heart_data <- heart_data %>%
 )
 ```
 
-# Using a landmark date of 7 days, define two groups
+# Landmark and Horizon Dates
+
+Making two variables: `landmark_date` and `horizon_date`
+
+`landmark_date`: Adds 7 days (1 week) to the initial date an observation was seen `horizon_date`: Adds 37 days (1 week + 30 days) to the initial date an observation was seen
 
 ```{r}
 heart_data <- 
@@ -121,7 +128,11 @@ heart_data <-
   )
 ```
 
+## Subsetting our cohort to not include anything past the horizon date (37 days)
+
 If a date is greater than 37 days past the initial, remove it from the data
+
+**We will still need to subset observations before the landmark date later.**
 
 ```{r}
 heart_data <- 
@@ -130,8 +141,7 @@ heart_data <-
   arrange(WL_ID_CODE, CHG_DATE)
 ```
 
-## Filtering our cohort
-
+# Refining our cohort
 
 Individuals who were listed were status 2 at day 7
 
@@ -174,32 +184,54 @@ counts_joined <- full_join(
   mutate(equal = n_heart_data == n_heart_data2)
 ```
 
-Checking whether we are missing data with counts_joined$equal == FALSE, we can see that this argument is FALSE for all observations, meaning that we are not missing any data with this filter. 
-
-
+Checking whether we are missing data with counts_joined\$equal == FALSE, we can see that this argument is FALSE for all observations, meaning that we are not missing any data with this filter.
 
 ```{r}
 heart_data <- heart_data2
 ```
 
+## Removing individuals who were status 1
 
-## Removing individuals who were status 1, but then changed to status 2 before the landmark date
+From my previous manipulation, I already made sure that everyone included so far has a priority status of 2 before the landmark date. So if anyone has an initial status of 1, then they should be removed from the analysis.
 
 ```{r}
+heart_data <- 
 heart_data %>%
   group_by(WL_ID_CODE) %>%
   mutate(
     keep_in_study = 
       if_else(
-        (INITIAL_STATUS == 1 & FINAL_STATUS == 2 & CHG_DATE < landmark_date),
+        (INITIAL_STATUS == 1),
         "NO",
         "YES"
       )
   ) %>% 
-  
   filter(
     any(keep_in_study == "YES")
-    ) %>% 
-  arrange(WL_ID_CODE)
+  ) %>% 
+  arrange(WL_ID_CODE, CHG_DATE)
 ```
 
+This is an ID of someone who was initally at status 1, but dropped to status 2 before the landmark date. We don't want them in our cohort, so they should be removed: 1430077
+
+
+## Excluding observations before the landmark time
+
+```{r}
+heart_data_test_landmark <- 
+  heart_data %>% 
+  filter(CHG_DATE >= landmark_date) %>% 
+  arrange(WL_ID_CODE, CHG_DATE)
+```
+
+# Double checking to see if we have the correct amount of unique IDs ~4347
+
+Unique ID Codes
+
+```{r}
+heart_data %>% 
+  distinct(WL_ID_CODE)
+
+heart_data_test_landmark %>% 
+  distinct(WL_ID_CODE)
+```
