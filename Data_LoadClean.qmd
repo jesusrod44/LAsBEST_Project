@@ -1,0 +1,94 @@
+---
+title: "Data Loading & Cleaning"
+author: "Julia Aptekar"
+format: html
+embed-resources: true
+---
+
+## Libraries
+```{r}
+library(dplyr)
+library(lubridate)
+```
+
+## Data Loading
+```{r}
+heart <- read.csv("data/LAsBEST26_SUBSET.csv")
+```
+
+## Data Cleaning
+### Recoding variables to factors
+```{r}
+heart$ETHCAT<-factor(heart$ETHCAT)
+heart$DIAB<-factor(heart$DIAB)
+heart$REM_CD_NEW<-factor(heart$REM_CD_NEW)
+heart$UNOS_CAND_STAT_CD_WAITLIST<-factor(heart$UNOS_CAND_STAT_CD_WAITLIST)
+```
+
+### Changing date variables to R Date objects
+```{r}
+heart$INIT_DATE<-as.Date(heart$INIT_DATE, format="%m/%d/%Y")
+heart$CHG_DATE<-as.Date(heart$CHG_DATE,format="%m/%d/%Y")
+```
+
+### Setting landmark time of 7 days
+```{r}
+heart$DAY7_DATE <- heart$INIT_DATE + 7
+```
+
+### Recoding UNOS_WAIT code to match up with STATUS number
+```{r}
+heart <- heart %>%
+  dplyr::mutate(
+    INITIAL_STATUS = dplyr::case_when(
+      UNOS_CAND_STAT_CD_WAITLIST == 2110 ~ 1,
+      UNOS_CAND_STAT_CD_WAITLIST == 2120 ~ 2,
+      UNOS_CAND_STAT_CD_WAITLIST == 2130 ~ 3,
+      UNOS_CAND_STAT_CD_WAITLIST == 2140 ~ 4,
+      UNOS_CAND_STAT_CD_WAITLIST == 2150 ~ 5,
+      UNOS_CAND_STAT_CD_WAITLIST == 2160 ~ 6,
+      TRUE ~ NA_real_))
+
+heart <- heart %>%
+  dplyr::mutate(FINAL_STATUS = dplyr::case_when(
+      UNOS_CAND_STAT_CD == 2110 ~ 1,
+      UNOS_CAND_STAT_CD == 2120 ~ 2,
+      UNOS_CAND_STAT_CD == 2130 ~ 3,
+      UNOS_CAND_STAT_CD == 2140 ~ 4,
+      UNOS_CAND_STAT_CD == 2150 ~ 5,
+      UNOS_CAND_STAT_CD == 2160 ~ 6,
+      TRUE ~ NA_real_))
+```
+
+### Creating ESCALATED variable
+```{r}
+# Defining Stable and Escalated Groups
+heart <- heart %>%
+  dplyr::filter(FINAL_STATUS==2)
+
+heart <- heart %>%
+  mutate(ESCALATED = case_when(INITIAL_STATUS == 2 & FINAL_STATUS == 2 ~ 0, # stable
+      INITIAL_STATUS %in% 3:6 & FINAL_STATUS == 2 ~ 1, # escalated
+      TRUE ~ NA_real_))
+```
+
+### Creating DAYS_DIFF variable to track time from listing to event
+```{r}
+heart$DAYS_DIFF <- as.numeric(heart$CHG_DATE - heart$INIT_DATE)
+```
+
+### Setting time since landmark of 7 days
+```{r}
+heart <- heart %>%
+  mutate(TIME_FROM_LANDMARK = DAYS_DIFF - 7)
+```
+
+### Setting horizon time of 30 days
+```{r}
+heart <- heart %>%
+  mutate(TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
+    EVENT_30 = ifelse(TIME_FROM_LANDMARK >= 0 & TIME_FROM_LANDMARK <= 30, 1, 0),
+    # Exclude events before landmark
+    TIME_30  = ifelse(TIME_FROM_LANDMARK < 0, NA, TIME_30),
+    EVENT_30 = ifelse(TIME_FROM_LANDMARK < 0, NA, EVENT_30))
+```
