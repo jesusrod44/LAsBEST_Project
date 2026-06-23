@@ -4,6 +4,7 @@ format: html
 ---
 ## Libraries
 ```{r}
+library(tidyverse)
 library(table1)
 library(cmprsk)
 ```
