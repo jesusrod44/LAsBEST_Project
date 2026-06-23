@@ -112,7 +112,7 @@ heart <- heart %>%
 
 # DESCRIPTIVE STATISTICS #
 
-install.packages("tableone")
+# install.packages("tableone") #
 library(tableone)
 names(heart)
 
@@ -131,7 +131,8 @@ print(table1, showAllLevels = TRUE, test=TRUE)
 
 # CIF PLOT #
 
-install.packages("survminer")
+# install.packages("survminer") #
+
 library(cmprsk)
 library(survminer)
 library(dplyr)
@@ -156,32 +157,26 @@ table(heart$EVENT_TYPE)
 length(heart$EVENT_TYPE)
 
 
-library(survminer)
-
 # Creating CIF plot
-library(cmprsk)
-heart <- heart %>%
-  mutate(
-    EXPOSURE = case_when(
-      ESCALATED == 0 ~ 0,   # stable
-      ESCALATED == 1 ~ 1,   # escalated
-      TRUE ~ NA_real_
-    )
-  )
 
 # Remove missing
 
 heart_clean <- heart %>%
-  filter(!is.na(EXPOSURE), !is.na(EVENT_TYPE))
+  filter(!is.na(ESCALATED), !is.na(EVENT_TYPE))
+
+# Convert Escalated Variable to Factor (0=stable, 1=escalated)
+heart_clean$ESCALATED <- factor(heart_clean$ESCALATED, levels = c(0,1))
+
+# Double Checking Data for Escalated Variable
+table(heart_clean$ESCALATED)
+
 
 # Creating CIF plot
 cif_fit <- cuminc(
   ftime   = heart_clean$TIME_30,
   fstatus = heart_clean$EVENT_TYPE,
-  group   = heart_clean$EXPOSURE
+  group   = heart_clean$ESCALATED
 )
-
-heart_clean$EXPOSURE <- factor(heart_clean$EXPOSURE, levels = c(0,1))
 
 ggcompetingrisks(
   fit = cif_fit,
