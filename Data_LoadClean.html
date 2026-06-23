@@ -2264,93 +2264,85 @@ Attaching package: &#39;lubridate&#39;</code></pre>
 <section id="data-loading" class="level2">
 <h2 class="anchored" data-anchor-id="data-loading">Data Loading</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">&quot;data/LAsBEST26_SUBSET.csv&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">&quot;data/LAsBEST26_SUBSET.csv&quot;</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span> <span class="fu">select</span>(<span class="sc">-</span>X)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="data-cleaning" class="level2">
 <h2 class="anchored" data-anchor-id="data-cleaning">Data Cleaning</h2>
-<section id="recoding-variables-to-factors" class="level3">
-<h3 class="anchored" data-anchor-id="recoding-variables-to-factors">Recoding variables to factors</h3>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>ETHCAT<span class="ot">&lt;-</span><span class="fu">factor</span>(heart<span class="sc">$</span>ETHCAT)</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>DIAB<span class="ot">&lt;-</span><span class="fu">factor</span>(heart<span class="sc">$</span>DIAB)</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>REM_CD_NEW<span class="ot">&lt;-</span><span class="fu">factor</span>(heart<span class="sc">$</span>REM_CD_NEW)</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>UNOS_CAND_STAT_CD_WAITLIST<span class="ot">&lt;-</span><span class="fu">factor</span>(heart<span class="sc">$</span>UNOS_CAND_STAT_CD_WAITLIST)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
-</section>
 <section id="changing-date-variables-to-r-date-objects" class="level3">
 <h3 class="anchored" data-anchor-id="changing-date-variables-to-r-date-objects">Changing date variables to R Date objects</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>INIT_DATE<span class="ot">&lt;-</span><span class="fu">as.Date</span>(heart<span class="sc">$</span>INIT_DATE, <span class="at">format=</span><span class="st">&quot;%m/%d/%Y&quot;</span>)</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>CHG_DATE<span class="ot">&lt;-</span><span class="fu">as.Date</span>(heart<span class="sc">$</span>CHG_DATE,<span class="at">format=</span><span class="st">&quot;%m/%d/%Y&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>INIT_DATE<span class="ot">&lt;-</span><span class="fu">as.Date</span>(heart<span class="sc">$</span>INIT_DATE, <span class="at">format=</span><span class="st">&quot;%m/%d/%Y&quot;</span>)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>CHG_DATE<span class="ot">&lt;-</span><span class="fu">as.Date</span>(heart<span class="sc">$</span>CHG_DATE, <span class="at">format=</span><span class="st">&quot;%m/%d/%Y&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="setting-landmark-time-of-7-days" class="level3">
 <h3 class="anchored" data-anchor-id="setting-landmark-time-of-7-days">Setting landmark time of 7 days</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>DAY7_DATE <span class="ot">&lt;-</span> heart<span class="sc">$</span>INIT_DATE <span class="sc">+</span> <span class="dv">7</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>DAY7_DATE <span class="ot">&lt;-</span> heart<span class="sc">$</span>INIT_DATE <span class="sc">+</span> <span class="dv">7</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="recoding-unos_wait-code-to-match-up-with-status-number" class="level3">
 <h3 class="anchored" data-anchor-id="recoding-unos_wait-code-to-match-up-with-status-number">Recoding UNOS_WAIT code to match up with STATUS number</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">INITIAL_STATUS =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2110</span> <span class="sc">~</span> <span class="dv">1</span>,</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2120</span> <span class="sc">~</span> <span class="dv">2</span>,</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2130</span> <span class="sc">~</span> <span class="dv">3</span>,</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2140</span> <span class="sc">~</span> <span class="dv">4</span>,</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2150</span> <span class="sc">~</span> <span class="dv">5</span>,</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2160</span> <span class="sc">~</span> <span class="dv">6</span>,</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_real_</span>))</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(<span class="at">FINAL_STATUS =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2110</span> <span class="sc">~</span> <span class="dv">1</span>,</span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2120</span> <span class="sc">~</span> <span class="dv">2</span>,</span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2130</span> <span class="sc">~</span> <span class="dv">3</span>,</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2140</span> <span class="sc">~</span> <span class="dv">4</span>,</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2150</span> <span class="sc">~</span> <span class="dv">5</span>,</span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2160</span> <span class="sc">~</span> <span class="dv">6</span>,</span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_real_</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">INITIAL_STATUS =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2110</span> <span class="sc">~</span> <span class="dv">1</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2120</span> <span class="sc">~</span> <span class="dv">2</span>,</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2130</span> <span class="sc">~</span> <span class="dv">3</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2140</span> <span class="sc">~</span> <span class="dv">4</span>,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2150</span> <span class="sc">~</span> <span class="dv">5</span>,</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2160</span> <span class="sc">~</span> <span class="dv">6</span>,</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_real_</span>))</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(<span class="at">FINAL_STATUS =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2110</span> <span class="sc">~</span> <span class="dv">1</span>,</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2120</span> <span class="sc">~</span> <span class="dv">2</span>,</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2130</span> <span class="sc">~</span> <span class="dv">3</span>,</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2140</span> <span class="sc">~</span> <span class="dv">4</span>,</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2150</span> <span class="sc">~</span> <span class="dv">5</span>,</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2160</span> <span class="sc">~</span> <span class="dv">6</span>,</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_real_</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="creating-escalated-variable" class="level3">
 <h3 class="anchored" data-anchor-id="creating-escalated-variable">Creating ESCALATED variable</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Defining Stable and Escalated Groups</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(FINAL_STATUS<span class="sc">==</span><span class="dv">2</span>)</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">ESCALATED =</span> <span class="fu">case_when</span>(INITIAL_STATUS <span class="sc">==</span> <span class="dv">2</span> <span class="sc">&amp;</span> FINAL_STATUS <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="dv">0</span>, <span class="co"># stable</span></span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>      INITIAL_STATUS <span class="sc">%in%</span> <span class="dv">3</span><span class="sc">:</span><span class="dv">6</span> <span class="sc">&amp;</span> FINAL_STATUS <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="dv">1</span>, <span class="co"># escalated</span></span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_real_</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Defining Stable and Escalated Groups</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">filter</span>(FINAL_STATUS<span class="sc">==</span><span class="dv">2</span>)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">ESCALATED =</span> <span class="fu">case_when</span>(INITIAL_STATUS <span class="sc">==</span> <span class="dv">2</span> <span class="sc">&amp;</span> FINAL_STATUS <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="dv">0</span>, <span class="co"># stable</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>      INITIAL_STATUS <span class="sc">%in%</span> <span class="dv">3</span><span class="sc">:</span><span class="dv">6</span> <span class="sc">&amp;</span> FINAL_STATUS <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="dv">1</span>, <span class="co"># escalated</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_real_</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="creating-days_diff-variable-to-track-time-from-listing-to-event" class="level3">
 <h3 class="anchored" data-anchor-id="creating-days_diff-variable-to-track-time-from-listing-to-event">Creating DAYS_DIFF variable to track time from listing to event</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>DAYS_DIFF <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(heart<span class="sc">$</span>CHG_DATE <span class="sc">-</span> heart<span class="sc">$</span>INIT_DATE)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>heart<span class="sc">$</span>DAYS_DIFF <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(heart<span class="sc">$</span>CHG_DATE <span class="sc">-</span> heart<span class="sc">$</span>INIT_DATE)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="setting-time-since-landmark-of-7-days" class="level3">
 <h3 class="anchored" data-anchor-id="setting-time-since-landmark-of-7-days">Setting time since landmark of 7 days</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">TIME_FROM_LANDMARK =</span> DAYS_DIFF <span class="sc">-</span> <span class="dv">7</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">TIME_FROM_LANDMARK =</span> DAYS_DIFF <span class="sc">-</span> <span class="dv">7</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="setting-horizon-time-of-30-days" class="level3">
 <h3 class="anchored" data-anchor-id="setting-horizon-time-of-30-days">Setting horizon time of 30 days</h3>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">TIME_30 =</span> <span class="fu">pmin</span>(TIME_FROM_LANDMARK, <span class="dv">30</span>),</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">EVENT_30 =</span> <span class="fu">ifelse</span>(TIME_FROM_LANDMARK <span class="sc">&gt;=</span> <span class="dv">0</span> <span class="sc">&amp;</span> TIME_FROM_LANDMARK <span class="sc">&lt;=</span> <span class="dv">30</span>, <span class="dv">1</span>, <span class="dv">0</span>),</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Exclude events before landmark</span></span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">TIME_30  =</span> <span class="fu">ifelse</span>(TIME_FROM_LANDMARK <span class="sc">&lt;</span> <span class="dv">0</span>, <span class="cn">NA</span>, TIME_30),</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">EVENT_30 =</span> <span class="fu">ifelse</span>(TIME_FROM_LANDMARK <span class="sc">&lt;</span> <span class="dv">0</span>, <span class="cn">NA</span>, EVENT_30))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>heart <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">TIME_30 =</span> <span class="fu">pmin</span>(TIME_FROM_LANDMARK, <span class="dv">30</span>),</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">EVENT_30 =</span> <span class="fu">ifelse</span>(TIME_FROM_LANDMARK <span class="sc">&gt;=</span> <span class="dv">0</span> <span class="sc">&amp;</span> TIME_FROM_LANDMARK <span class="sc">&lt;=</span> <span class="dv">30</span>, <span class="dv">1</span>, <span class="dv">0</span>),</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Exclude events before landmark</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">TIME_30  =</span> <span class="fu">ifelse</span>(TIME_FROM_LANDMARK <span class="sc">&lt;</span> <span class="dv">0</span>, <span class="cn">NA</span>, TIME_30),</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">EVENT_30 =</span> <span class="fu">ifelse</span>(TIME_FROM_LANDMARK <span class="sc">&lt;</span> <span class="dv">0</span>, <span class="cn">NA</span>, EVENT_30))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 </section>
