@@ -80,6 +80,8 @@ heart_data <-
 
 ## Cleaning Priority Status
 
+This just makes the data easier to work with.
+
 Planning to clean `FINAL_STATUS` later, as at times in the data, it doesn't really reflect the actual "final" status a patient had when they were last seen
 
 ```{r}
@@ -143,6 +145,8 @@ heart_data <-
 
 # Refining our cohort
 
+*BEWARE of people who 2->3->2 before landmark time, they do NOT count as stable* 
+
 Individuals who were listed were status 2 at day 7
 
 ```{r}
@@ -152,7 +156,7 @@ heart_data2 <-
   mutate(
     keep_in_study = 
       if_else(
-        (FINAL_STATUS == 2 & CHG_DATE < landmark_date),
+        (FINAL_STATUS == 2 & CHG_DATE <= landmark_date),
         "YES",
         "NO"
       )
@@ -229,9 +233,37 @@ heart_data_test_landmark <-
 Unique ID Codes
 
 ```{r}
+heart_ids <- 
 heart_data %>% 
   distinct(WL_ID_CODE)
 
+heart_ids_after_landmark <- 
 heart_data_test_landmark %>% 
   distinct(WL_ID_CODE)
 ```
+
+FTIME AND FSTATUS
+
+```{r}
+dat <- dat %>%
+  mutate(
+    REM_CD_NEW = case_when(
+      END_DATE > "2024-09-30" ~ 9999,
+      .default = REM_CD
+    ),
+    END_DATE_NEW = case_when(
+      END_DATE > "2024-09-30" ~ as.Date("2024-09-30"),
+      .default = END_DATE
+    ),
+    # Create competing risks outcomes
+    FTIME = END_DATE_NEW - INIT_DATE,
+    FTIME = ifelse(FTIME == 0, 0.9, FTIME),
+    FSTATUS = case_when(
+      REM_CD_NEW %in% c(5, 8, 13) ~ 1, # Death/Deterioration
+      REM_CD_NEW %in% c(2, 3, 4, 14, 21, 22) ~ 2, # Transplant 
+      REM_CD_NEW == 12 ~ 3, # Recovered
+      .default = 0
+    )
+  )
+```
+
