@@ -97,7 +97,7 @@ heart_data <- heart_data %>%
       UNOS_CAND_STAT_CD_WAITLIST == 2160 ~ 6,
       TRUE ~ NA_real_
     ),
-     FINAL_STATUS = dplyr::case_when(
+     CHANGE_STATUS = dplyr::case_when(
       UNOS_CAND_STAT_CD == 2110 ~ 1,
       UNOS_CAND_STAT_CD == 2120 ~ 2,
       UNOS_CAND_STAT_CD == 2130 ~ 3,
@@ -107,11 +107,24 @@ heart_data <- heart_data %>%
       TRUE ~ NA_real_
   ),
   across(
-    c(INITIAL_STATUS, FINAL_STATUS),
+    c(INITIAL_STATUS, CHANGE_STATUS),
     as.factor
   )
 )
 ```
+
+The true FINAL status
+
+```{r}
+heart_data <- 
+  heart_data %>% 
+  group_by(WL_ID_CODE) %>% 
+  mutate(
+    FINAL_STATUS = 
+      last(CHANGE_STATUS)
+  )
+```
+
 
 # Landmark and Horizon Dates
 
@@ -145,18 +158,196 @@ heart_data <-
 
 # Refining our cohort
 
-*BEWARE of people who 2->3->2 before landmark time, they do NOT count as stable* 
+## A new approach
 
-Individuals who were listed were status 2 at day 7
+```{r}
+heart_data_before_landmark <- 
+  heart_data %>% 
+  filter(CHG_DATE <= landmark_date)
+```
+
+## Remove people at initial status 1 
 
 ```{r}
 heart_data2 <- 
+  heart_data_before_landmark %>%
+  group_by(WL_ID_CODE) %>%
+  filter(!INITIAL_STATUS == 1) %>% 
+  arrange(WL_ID_CODE, CHG_DATE)
+```
+
+## Classify Stable individuals, those whose CHANGE_STATUS was 2 for ALL before landmark date == YES rows
+
+```{r}
+heart_data2 <- 
+  heart_data2 %>% 
+  group_by(WL_ID_CODE) %>% 
+  mutate(
+    stable = 
+      if_else(
+        all(CHANGE_STATUS == 2),
+        "YES",
+        "NO"
+      )
+  ) %>% 
+  filter(FTIME > 7)
+```
+
+```{r}
+stable_ids <- 
+  heart_data2 %>% 
+  filter(stable == "YES")
+```
+
+## Classify Escalating individuals
+
+```{r}
+escalating_ids <- 
+heart_data2 %>% 
+  group_by(WL_ID_CODE) %>% 
+  filter(stable == "NO") %>% 
+  filter(last(CHANGE_STATUS == 2))
+```
+
+
+## Joining by IDs
+
+```{r}
+stable_ids <- 
+  stable_ids %>% 
+  select(WL_ID_CODE)
+```
+
+```{r}
+escalating_ids <- 
+  escalating_ids %>% 
+  select(WL_ID_CODE)
+```
+
+
+```{r}
+stable_ids %>% 
+  distinct(WL_ID_CODE)
+
+escalating_ids %>% 
+  distinct(WL_ID_CODE)
+```
+
+## Joining
+
+```{r}
+left_join(
+  
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*BEWARE of people who 2->3->2 before landmark time, they do NOT count as stable*
+
+## Removing individuals who were status 1
+
+From my previous manipulation, I already made sure that everyone included so far has a priority status of 2 before the landmark date. So if anyone has an initial status of 1, then they should be removed from the analysis.
+
+```{r}
+heart_data <- 
+  heart_data %>%
+  group_by(WL_ID_CODE) %>%
+  filter(!INITIAL_STATUS == 1) %>% 
+  arrange(WL_ID_CODE, CHG_DATE)
+```
+
+This is an ID of someone who was initally at status 1, but dropped to status 2 before the landmark date. We don't want them in our cohort, so they should be removed: 1430077
+
+## Classify Stable individuals, those whose CHANGE_STATUS was 2 for ALL before landmark date == YES rows
+
+```{r}
+heart_data <- 
+  heart_data %>% 
+  group_by(WL_ID_CODE) %>% 
+  mutate(
+    before_landmark_date = 
+      if_else(
+        (CHG_DATE <= landmark_date),
+        "YES",
+        "NO"
+      )
+  )
+```
+
+
+```{r}
+heart_data <-
+  heart_data %>%
+  group_by(WL_ID_CODE) %>%
+  mutate(
+    stable =
+      all(
+          CHANGE_STATUS[before_landmark_date == "YES"] == 2
+      )
+  )
+
+```
+
+## Classify Escalated Patients
+
+Those who were intially status 3-6, but changed to status 2 right before the landmark date
+
+```{r}
+heart_data <- 
   heart_data %>%
   group_by(WL_ID_CODE) %>%
   mutate(
     keep_in_study = 
       if_else(
-        (FINAL_STATUS == 2 & CHG_DATE <= landmark_date),
+        (CHANGE_STATUS == 2 & CHG_DATE <= landmark_date),
         "YES",
         "NO"
       )
@@ -167,61 +358,41 @@ heart_data2 <-
   arrange(WL_ID_CODE)
 ```
 
-Making sure we are not losing any observations from IDs that have a final status of 2 before the landmark date
-
 ```{r}
-counts2 <- heart_data2 %>% 
-  count(WL_ID_CODE) %>% 
-  arrange(desc(n))
-
-counts <- heart_data %>% 
-  count(WL_ID_CODE) %>% 
-  arrange(desc(n))
-
-counts_joined <- full_join(
-  counts,
-  counts2,
-  by = "WL_ID_CODE",
-  suffix = c("_heart_data", "_heart_data2")
-) %>% 
-  filter(!is.na(n_heart_data2)) %>% 
-  mutate(equal = n_heart_data == n_heart_data2)
-```
-
-Checking whether we are missing data with counts_joined\$equal == FALSE, we can see that this argument is FALSE for all observations, meaning that we are not missing any data with this filter.
-
-```{r}
-heart_data <- heart_data2
-```
-
-## Removing individuals who were status 1
-
-From my previous manipulation, I already made sure that everyone included so far has a priority status of 2 before the landmark date. So if anyone has an initial status of 1, then they should be removed from the analysis.
-
-```{r}
-heart_data <- 
-heart_data %>%
+heart_data_escalated <- heart_data %>%
   group_by(WL_ID_CODE) %>%
+  arrange(CHG_DATE) %>%
+  filter(CHG_DATE <= landmark_date) %>%
+  slice_tail(n = 1) %>%
   mutate(
-    keep_in_study = 
-      if_else(
-        (INITIAL_STATUS == 1),
-        "NO",
-        "YES"
-      )
-  ) %>% 
-  filter(
-    any(keep_in_study == "YES")
-  ) %>% 
-  arrange(WL_ID_CODE, CHG_DATE)
+    ESCALATED = if_else(
+      as.numeric(as.character(INITIAL_STATUS)) %in% c(3,4,5,6) &
+      as.numeric(as.character(CHANGE_STATUS)) == 2,
+      1L,
+      0L
+    )
+  ) %>%
+  ungroup()
 ```
 
-This is an ID of someone who was initally at status 1, but dropped to status 2 before the landmark date. We don't want them in our cohort, so they should be removed: 1430077
+```{r}
+
+```
+
+```{r}
+
+```
+
 
 
 ## Excluding observations before the landmark time
 
 ```{r}
+heart_data_test_landmark <- 
+  heart_data3 %>% 
+  filter(CHG_DATE >= landmark_date) %>% 
+  arrange(WL_ID_CODE, CHG_DATE)
+
 heart_data_test_landmark <- 
   heart_data %>% 
   filter(CHG_DATE >= landmark_date) %>% 
@@ -234,7 +405,7 @@ Unique ID Codes
 
 ```{r}
 heart_ids <- 
-heart_data %>% 
+heart_data_escalated %>% 
   distinct(WL_ID_CODE)
 
 heart_ids_after_landmark <- 
