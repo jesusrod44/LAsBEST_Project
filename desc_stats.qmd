@@ -1,13 +1,22 @@
 ---
 title: "Descriptive Statistics Presentation"
 format: html
+embed-resources: true
 ---
 ## Libraries
 ```{r}
 library(tidyverse)
+library(readr)
+library(survminer)
 library(table1)
 library(cmprsk)
 library(dplyr)
+```
+
+## Data Loading
+```{r}
+heart2 <- read_csv("data/heart2.csv", col_types=cols(...1 = col_skip()))
+heart2_long <- read_csv("data/heart2_long.csv", col_types=cols(...1 = col_skip()))
 ```
 
 ## Making table 1
