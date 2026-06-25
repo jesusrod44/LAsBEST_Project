@@ -22,7 +22,7 @@ heart <- heart %>% select(-X) %>%
   mutate(INIT_DATE = ymd(INIT_DATE), # changing to date objects
     CHG_DATE = ymd(CHG_DATE),
     DAY7_DATE = INIT_DATE + 7, # creating landmark time of 7 days
-    INITIAL_STATUS = case_when( # recoding status numbers
+    INITIAL_STATUS = case_when(# recoding status numbers
       UNOS_CAND_STAT_CD_WAITLIST == 2110 ~ 1,
       UNOS_CAND_STAT_CD_WAITLIST == 2120 ~ 2,
       UNOS_CAND_STAT_CD_WAITLIST == 2130 ~ 3,
@@ -30,7 +30,7 @@ heart <- heart %>% select(-X) %>%
       UNOS_CAND_STAT_CD_WAITLIST == 2150 ~ 5,
       UNOS_CAND_STAT_CD_WAITLIST == 2160 ~ 6,
       TRUE ~ NA_real_),
-    CHG_STATUS = case_when( # recoding new status per row
+    CHG_STATUS = case_when(# recoding new status per row
       UNOS_CAND_STAT_CD == 2110 ~ 1,
       UNOS_CAND_STAT_CD == 2120 ~ 2,
       UNOS_CAND_STAT_CD == 2130 ~ 3,
