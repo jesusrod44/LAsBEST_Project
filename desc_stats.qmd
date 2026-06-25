@@ -44,10 +44,9 @@ heart$ESCALATED2 <- factor(heart$ESCALATED, levels = c(0, 1),
                            labels = c("Stable", "Esclatated"))
 ```
 
+## Descriptive Statistics Table
+
 ```{r}
-
-library(table1)
-
 label(heart$INIT_AGE) <- "Age at Listing"
 label(heart$INIT_BMI_NEW) <- "BMI at Listing"
 label(heart$GENDER2) <- "Gender"
@@ -58,7 +57,9 @@ label(heart$DIAB2) <- "Diabetes"
 label(heart$ESCALATED2) <- "Escalated Status"
 
 # The Actual Table for Descriptive Statistics
-table1(
+heart %>% 
+  distinct(WL_ID_CODE) %>% 
+  table1(
   ~ INIT_AGE +
     INIT_BMI_NEW +
     GENDER2 +
@@ -67,16 +68,15 @@ table1(
     EXCEPTION2 +
     DIAB2 |
     ESCALATED2,
-  data = heart,
   caption = "Table 1. Descriptive Statistics by Escalation Status"
-
 )
 ```
+
 
 ## Cumulative Incidence Plots
 
 ```{r}
-heart2_long <- heart2_long %>%
+heart <- heart %>%
   mutate(EVENT_TYPE = case_when(
       # Death / deterioration
       REM_CD_NEW %in% c(5,8,13) ~ 1,
