@@ -459,6 +459,10 @@ dat <- dat %>%
   )
 ```
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> 6b9b85edf6734365ab1a5aab5440ba1c0442c02e
 
 ```{r}
 # write.csv(heart2, file = "data/clean_heart_data.csv")
@@ -548,4 +552,55 @@ table1(
   | ESCALATED,
   data = clean_heart_data_long
 )
+<<<<<<< HEAD
 ```
+=======
+```
+
+# Making a table
+
+```{r}
+heart <- read_csv("data/clean_heart_data_long.csv")
+```
+
+
+```{r}
+# DIAB statuses/types
+heart$DIAB <- ifelse(is.na(heart$DIAB), 0, heart$DIAB) # making NA become 0s
+heart$DIAB2 <- factor(heart$DIAB, levels = c(0, 1, 2, 3, 4, 5, 998),
+                      labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
+                      ordered=TRUE)
+
+# Gender
+heart$GENDER2 <- factor(heart$GENDER, levels = c("F", "M"),
+                        labels = c("Female", "Male"),
+                        ordered = TRUE)
+
+# ETHCAT
+heart$ETHCAT2 <- factor(heart$ETHCAT, levels = c(1, 2, 4, 5, 6, 7, 9, 998),
+                        labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
+
+# EXCEPTION
+heart$EXCEPTION2 <- factor(heart$EXCEPTION, levels = c(0, 1),
+                           labels = c("No Exception", "Exception"))
+```
+
+```{r}
+library(table1)
+
+table1(
+  ~ INIT_AGE +
+    INIT_BMI_NEW +
+    GENDER2 +
+    ETHCAT2 +
+    BTYPE_REC +
+    EXCEPTION2 +
+    DIAB2
+  | ESCALATED,
+  data = heart
+)
+```
+
+=======
+>>>>>>> 8da89ee13b7a3473da747eb282cef804a2fb0fba
+>>>>>>> 6b9b85edf6734365ab1a5aab5440ba1c0442c02e
