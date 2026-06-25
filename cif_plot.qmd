@@ -1,0 +1,131 @@
+---
+title: "CIF Plot"
+author: "Sydney Shimizu"
+format: html
+editor: visual
+---
+
+## CIF Plotting
+
+```{r}
+
+heart2<-read.csv("C:/Users/12063/Downloads/clean_heart_data_long.csv")
+
+# install.packages("survminer") #
+
+library(cmprsk)
+library(survminer)
+library(dplyr)
+```
+
+```{r}
+
+# Compare Cumulative Incidence of Death/Deterioration and Cumulative Incidence of Heart Transplantation
+
+heart2 <- heart2 %>%
+  mutate(
+    EVENT_TYPE = case_when(
+      # Death / deterioration
+      REM_CD_NEW %in% c(5,8,13) ~ 1,
+      
+      # Transplanted (deceased or living donor)
+      REM_CD_NEW %in% c(2,3,4,14,21,22) ~ 2, 
+      
+      # Censor everyone else
+      TRUE ~ 0
+    ),
+    
+# Creating TIME_FROM_LANDMARK, TIME_30, and EVENT_30 Variables
+
+TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
+    
+TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
+
+ EVENT_30 = case_when(
+      TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
+      TRUE ~ 0
+    )
+)
+  
+```
+
+```{r}
+
+# Create Labels for Status #
+
+heart_clean <- heart2 %>%
+  filter(!is.na(TIME_30), !is.na(EVENT_30), !is.na(ESCALATED)) %>%
+  mutate(ESCALATED = factor(ESCALATED, levels = c(0, 1),
+                            labels = c("Stable", "Escalated")))
+```
+
+```{r}
+
+# Creating CIF Fit
+cif_fit <- cuminc(
+  ftime   = heart2$TIME_30,
+  fstatus = heart2$EVENT_TYPE,
+  group   = heart2$ESCALATED
+)
+```
+
+```{r}
+
+# P-Values for the Plot
+
+pval_transplant    <- round(cif_fit$Tests["2", "pv"], 3)
+pval_death         <- round(cif_fit$Tests["1", "pv"], 3)
+
+pval_label <- paste0(
+  "Transplanted: p-value = ", pval_transplant, "\n",
+  "Death/Deterioration: p-value = ", pval_death
+)
+
+```
+
+```{r}
+
+# Plot the CIF
+
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("#E69F00", "#56B4E9", "#E69F00", "#56B4E9"),
+  linetype        = c("dotted", "solid", "dotted", "solid")
+) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 4
+  ) +
+  scale_x_continuous(breaks = c(0, 7, 14, 21, 28), limits = c(0, 30)) +
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("#E69F00", "#56B4E9"),
+    labels = c("Death/Deterioration", "Transplanted")
+  ) +
+  scale_linetype_manual(
+    values = c("dotted", "solid", "dotted", "solid"),
+    labels = c("Stable", "Escalated", "Stable", "Escalated")
+  ) +
+  labs(
+    x        = "Days since initial listing",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 11),
+    axis.title       = element_text(face = "bold", size = 12),
+    axis.text        = element_text(size = 11),
+    panel.grid.minor = element_blank()
+  )
+```
