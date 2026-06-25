@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Data Loading & Cleaning"
 author: "Julia Aptekar"
@@ -107,4 +108,115 @@ setdiff(heart2$WL_ID_CODE, analysis_ids$WL_ID_CODE)
 ```{r}
 write.csv(heart2, file = "data/heart2.csv", row.names=FALSE)
 write.csv(heart2_long, file = "data/heart2_long.csv", row.names=FALSE)
+=======
+---
+title: "Data Loading & Cleaning"
+author: "Julia Aptekar"
+format: html
+embed-resources: true
+---
+
+## Libraries
+```{r}
+library(dplyr)
+library(lubridate)
+```
+
+## Data Loading
+```{r}
+heart <- read.csv("data/LAsBEST26_SUBSET.csv")
+```
+
+## Data Cleaning
+```{r}
+heart <- heart %>% select(-X) %>%
+  mutate(INIT_DATE = ymd(INIT_DATE), # changing to date objects
+    CHG_DATE = ymd(CHG_DATE),
+    DAY7_DATE = INIT_DATE + 7, # creating landmark time of 7 days
+    INITIAL_STATUS = case_when(# recoding status numbers
+      UNOS_CAND_STAT_CD_WAITLIST == 2110 ~ 1,
+      UNOS_CAND_STAT_CD_WAITLIST == 2120 ~ 2,
+      UNOS_CAND_STAT_CD_WAITLIST == 2130 ~ 3,
+      UNOS_CAND_STAT_CD_WAITLIST == 2140 ~ 4,
+      UNOS_CAND_STAT_CD_WAITLIST == 2150 ~ 5,
+      UNOS_CAND_STAT_CD_WAITLIST == 2160 ~ 6,
+      TRUE ~ NA_real_),
+    CHG_STATUS = case_when(# recoding new status per row
+      UNOS_CAND_STAT_CD == 2110 ~ 1,
+      UNOS_CAND_STAT_CD == 2120 ~ 2,
+      UNOS_CAND_STAT_CD == 2130 ~ 3,
+      UNOS_CAND_STAT_CD == 2140 ~ 4,
+      UNOS_CAND_STAT_CD == 2150 ~ 5,
+      UNOS_CAND_STAT_CD == 2160 ~ 6,
+      TRUE ~ NA_real_),
+    DAYS_DIFF = as.numeric(CHG_DATE - INIT_DATE), # creating diff between chg and initial days
+    TIME_FROM_LANDMARK = DAYS_DIFF - 7) # creating time from landmark
+```
+
+## Grouping Escalated & Stable
+```{r}
+# finding each patient's status on day 7
+day7_status <- heart %>%
+  filter(CHG_DATE >= INIT_DATE, CHG_DATE <= DAY7_DATE) %>% # keep rows from listing through day 7
+  group_by(WL_ID_CODE) %>% # patient level
+  slice_max(CHG_DATE, n=1, with_ties=FALSE) %>% # choosing most recent CHG_DATE
+  ungroup() %>%
+  mutate(STATUS_DAY7 = CHG_STATUS) %>% # this is their day 7 status
+  select(WL_ID_CODE, STATUS_DAY7) # selecting to make joins easier
+  
+# creating frame with one row per patient/ID
+groups <- heart %>% 
+  group_by(WL_ID_CODE) %>% # patient level
+  summarise(INIT_DATE = first(INIT_DATE), # tracking first occurrence of each
+            DAY7_DATE = first(DAY7_DATE),
+            INITIAL_STATUS = first(INITIAL_STATUS),
+            FTIME = first(FTIME),
+            HAD_NON2 = any(CHG_STATUS[CHG_DATE >= first(INIT_DATE) & CHG_DATE <= first(DAY7_DATE)] != 2, na.rm=TRUE), # checking if patient had any non-2 status from listing to day 7
+            .groups="drop") %>%
+  left_join(day7_status, by="WL_ID_CODE") %>%  # adding each patient's day 7 status
+  mutate(STATUS_DAY7 = ifelse(is.na(STATUS_DAY7), INITIAL_STATUS, STATUS_DAY7)) %>% # if no change before day 7, status is still initial status
+  mutate(group_num = case_when(INITIAL_STATUS == 2 & STATUS_DAY7 == 2 & !HAD_NON2 ~ 1, # stable
+                               INITIAL_STATUS %in% 3:6 & STATUS_DAY7 == 2 ~ 2, # escalated
+                               TRUE ~ 3)) # exclude from analysis later
+
+# group counts prior to filtering by time
+groups %>% count(group_num)
+```
+
+## Filtering out excluded group and landmark window
+```{r}
+# creating tidy frame of analysis patients
+heart2 <- groups %>%
+  filter(group_num %in% 1:2, # filtering to stable/escalated individuals
+         FTIME > 7) %>% # filtering out weird cases
+  mutate(LANDMARK_START = DAY7_DATE,
+         HORIZON_DATE = DAY7_DATE + 30, # setting horizon time and landmark start
+         ESCALATED = case_when(group_num == 1 ~ 0,
+                               group_num == 2 ~ 1)) %>%   # creating escalated variable
+  select(-group_num) # removing group_num because we have ESCALATED now
+
+# creating long frame of analysis patients
+heart2_long <- heart %>%
+  inner_join(heart2 %>% select(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), by = "WL_ID_CODE") %>%
+  filter(CHG_DATE >= LANDMARK_START,
+         CHG_DATE <= HORIZON_DATE) # filtering to rows in the day 7 to day 37 window
+```
+
+## Checking given IDs against ours
+```{r}
+analysis_ids <- read.csv("data/analysis_ids.csv")
+analysis_ids <- analysis_ids %>% select(-X) %>%
+  rename(WL_ID_CODE = x)
+
+# IDs in the correct dataframe but not in mine
+setdiff(analysis_ids$WL_ID_CODE, heart2$WL_ID_CODE)
+# IDs in mine but not in the correct dataframe
+setdiff(heart2$WL_ID_CODE, analysis_ids$WL_ID_CODE)
+```
+
+## Writing our csv's
+```{r}
+write.csv(heart2, file = "data/heart2.csv", row.names=FALSE)
+write.csv(heart2_long, file = "data/heart2_long.csv", row.names=FALSE)
+>>>>>>> f40b2919ede52ef0f75adf30152f037d8bf78dde
 ```
