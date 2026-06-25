@@ -16,9 +16,11 @@ library(dplyr)
 ```{r}
 heart2 <- read.csv("data/heart2.csv")
 heart2_long <- read.csv("data/heart2_long.csv")
+
 ```
 
 ## Making table 1
+
 ### Adding labeled factor versions of certain variables (for table making)
 ```{r}
 # DIAB statuses/types
@@ -44,7 +46,45 @@ heart2_long$ETHCAT2 <- factor(heart2_long$ETHCAT,
 heart2_long$EXCEPTION2 <- factor(heart2_long$EXCEPTION, 
                                  levels = c(0, 1),
                                  labels = c("No Exception", "Exception"))
+# ESCALATED
+heart2_long$ESCALATED2 <- factor(heart2_long$ESCALATED, levels = c(0, 1),
+                           labels = c("Stable", "Esclatated"))
 ```
+
+## Descriptive Statistics Table
+
+```{r}
+label(heart2_long$INIT_AGE) <- "Age at Listing"
+label(heart2_long$INIT_BMI_NEW) <- "BMI at Listing"
+label(heart2_long$GENDER2) <- "Gender"
+label(heart2_long$ETHCAT2) <- "Race/Ethnicity"
+label(heart2_long$BTYPE_REC) <- "Blood Type"
+label(heart2_long$EXCEPTION2) <- "Exception Status"
+label(heart2_long$DIAB2) <- "Diabetes"
+label(heart2_long$ESCALATED2) <- "Escalated Status"
+
+# Making a dataset with unique waitlist ID codes
+heart2_unique_id_codes <- 
+  heart2_long %>% 
+  distinct(WL_ID_CODE, .keep_all = T)
+
+
+# The Actual Table for Descriptive Statistics
+table1(
+  ~ INIT_AGE +
+    INIT_BMI_NEW +
+    GENDER2 +
+    ETHCAT2 +
+    BTYPE_REC +
+    EXCEPTION2 +
+    DIAB2 |
+    ESCALATED2,
+  data = heart2_unique_id_codes,
+  caption = "Table 1. Descriptive Statistics by Escalation Status"
+)
+```
+
+
 
 ## Cumulative Incidence Plots
 ```{r}
