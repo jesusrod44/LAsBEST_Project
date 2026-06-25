@@ -2231,6 +2231,10 @@ vertical-align: -.125em;
 </header>
 
 
+<section id="head" class="level2">
+<h2 class="anchored" data-anchor-id="head">&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</h2>
+<p>title: “Data Loading &amp; Cleaning” author: “Julia Aptekar” format: html embed-resources: true —</p>
+</section>
 <section id="libraries" class="level2">
 <h2 class="anchored" data-anchor-id="libraries">Libraries</h2>
 <div class="cell">
@@ -2343,20 +2347,25 @@ Attaching package: &#39;lubridate&#39;</code></pre>
 <span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">LANDMARK_START =</span> DAY7_DATE,</span>
 <span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>         <span class="at">HORIZON_DATE =</span> DAY7_DATE <span class="sc">+</span> <span class="dv">30</span>, <span class="co"># setting horizon time and landmark start</span></span>
 <span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>         <span class="at">ESCALATED =</span> <span class="fu">case_when</span>(group_num <span class="sc">==</span> <span class="dv">1</span> <span class="sc">~</span> <span class="dv">0</span>,</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>                               group_num <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="dv">1</span>)) <span class="co"># creating escalated variable</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="co"># creating long frame of analysis patients</span></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>heart2_long <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">inner_join</span>(heart2 <span class="sc">%&gt;%</span> <span class="fu">select</span>(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), <span class="at">by =</span> <span class="st">&quot;WL_ID_CODE&quot;</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(CHG_DATE <span class="sc">&gt;=</span> LANDMARK_START,</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>         CHG_DATE <span class="sc">&lt;=</span> HORIZON_DATE) <span class="co"># filtering to rows in the day 7 to day 37 window</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>                               group_num <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="dv">1</span>)) <span class="sc">%&gt;%</span>   <span class="co"># creating escalated variable</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>group_num) <span class="co"># removing group_num because we have ESCALATED now</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co"># joining heart2 with heart to get all missing variables</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>heart_sub <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(WL_ID_CODE, EXCEPTION, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW, INIT_AGE, ETHCAT, DIAB, BTYPE_REC)</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>heart2 <span class="ot">&lt;-</span> <span class="fu">left_join</span>(heart2, heart_sub, <span class="at">by =</span> <span class="st">&quot;WL_ID_CODE&quot;</span>)</span>
 <span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="co"># row level counts in 30 day window</span></span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>heart2_long <span class="sc">%&gt;%</span> <span class="fu">count</span>(ESCALATED)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-stdout">
-<pre><code>  ESCALATED    n
-1         0 3632
-2         1  785</code></pre>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="co"># creating long frame of analysis patients</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>heart2_long <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">inner_join</span>(heart2 <span class="sc">%&gt;%</span> <span class="fu">select</span>(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), <span class="at">by =</span> <span class="st">&quot;WL_ID_CODE&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(CHG_DATE <span class="sc">&gt;=</span> LANDMARK_START,</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>         CHG_DATE <span class="sc">&lt;=</span> HORIZON_DATE) <span class="co"># filtering to rows in the day 7 to day 37 window</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in inner_join(., heart2 %&gt;% select(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, : Detected an unexpected many-to-many relationship between `x` and `y`.
+ℹ Row 50 of `x` matches multiple rows in `y`.
+ℹ Row 1 of `y` matches multiple rows in `x`.
+ℹ If a many-to-many relationship is expected, set `relationship =
+  &quot;many-to-many&quot;` to silence this warning.</code></pre>
 </div>
 </div>
 </section>
@@ -2382,8 +2391,7 @@ Attaching package: &#39;lubridate&#39;</code></pre>
 <section id="writing-our-csvs" class="level2">
 <h2 class="anchored" data-anchor-id="writing-our-csvs">Writing our csv’s</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2, <span class="at">file =</span> <span class="st">&quot;data/heart2.csv&quot;</span>, <span class="at">row.names=</span><span class="cn">FALSE</span>)</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2_long, <span class="at">file =</span> <span class="st">&quot;data/heart2_long.csv&quot;</span>, <span class="at">row.names=</span><span class="cn">FALSE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2, <span class="at">file =</span> <span class="st">&quot;data/heart2.csv&quot;</span>, <span class="at">row.names=</span><span class="cn">FALSE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 
