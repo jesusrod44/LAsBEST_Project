@@ -107,6 +107,6 @@ setdiff(heart2$WL_ID_CODE, analysis_ids$WL_ID_CODE)
 
 ## Writing our csv's
 ```{r}
-write.csv(heart2, file = "data/heart2.csv")
-write.csv(heart2_long, file = "data/heart2_long.csv")
+write.csv(heart2, file = "data/heart2.csv", row.names=FALSE)
+write.csv(heart2_long, file = "data/heart2_long.csv", row.names=FALSE)
 ```

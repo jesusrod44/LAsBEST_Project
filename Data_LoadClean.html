@@ -2382,8 +2382,8 @@ Attaching package: &#39;lubridate&#39;</code></pre>
 <section id="writing-our-csvs" class="level2">
 <h2 class="anchored" data-anchor-id="writing-our-csvs">Writing our csv’s</h2>
 <div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2, <span class="at">file =</span> <span class="st">&quot;data/heart2.csv&quot;</span>)</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2_long, <span class="at">file =</span> <span class="st">&quot;data/heart2_long.csv&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2, <span class="at">file =</span> <span class="st">&quot;data/heart2.csv&quot;</span>, <span class="at">row.names=</span><span class="cn">FALSE</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2_long, <span class="at">file =</span> <span class="st">&quot;data/heart2_long.csv&quot;</span>, <span class="at">row.names=</span><span class="cn">FALSE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 
