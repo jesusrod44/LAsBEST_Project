@@ -7,6 +7,7 @@ format: html
 library(tidyverse)
 library(table1)
 library(cmprsk)
+library(dplyr)
 ```
 
 ## Making table 1
@@ -33,3 +34,18 @@ heart$EXCEPTION2 <- factor(heart$EXCEPTION, levels = c(0, 1),
 ```
 
 ## Cumulative Incidence Plots
+```{r}
+heart2_long <- heart2_long %>%
+  mutate(EVENT_TYPE = case_when(
+      # Death / deterioration
+      REM_CD_NEW %in% c(5,8,13) ~ 1,
+      # Transplanted (deceased or living donor)
+      REM_CD_NEW %in% c(2,3,4,14,21,22) ~ 2, 
+      # Censor everyone else
+      TRUE ~ 0),
+# Creating TIME_FROM_LANDMARK, TIME_30, and EVENT_30 Variables
+TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
+TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
+EVENT_30 = case_when(TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
+      TRUE ~ 0))
+```
