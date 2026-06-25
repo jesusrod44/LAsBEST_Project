@@ -233,35 +233,14 @@ escalating_ids %>%
   distinct(WL_ID_CODE)
 ```
 
-
-
 ## Joining
 
 ```{r}
-ids_we_need <- 
-  full_join(
-    stable_ids, escalating_ids
-  ) %>% 
-  distinct()
+left_join(
+  
+)
 ```
 
-
-```{r}
-test <- 
-  left_join(
-    heart_data, ids_we_need,
-    by = "WL_ID_CODE"
-  )
-```
-
-```{r}
-test %>%
-  filter(
-    CHG_DATE >= landmark_date
-  ) %>% 
-  distinct(WL_ID_CODE)
-
-```
 
 
 
@@ -459,6 +438,7 @@ dat <- dat %>%
   )
 ```
 
+<<<<<<< HEAD
 
 ```{r}
 # write.csv(heart2, file = "data/clean_heart_data.csv")
@@ -594,3 +574,5 @@ table1(
 )
 ```
 
+=======
+>>>>>>> 8da89ee13b7a3473da747eb282cef804a2fb0fba

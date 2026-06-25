@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Descriptive Statistics Presentation"
 format: html
@@ -58,7 +59,7 @@ label(heart$ESCALATED2) <- "Escalated Status"
 
 # The Actual Table for Descriptive Statistics
 heart %>% 
-  distinct(WL_ID_CODE) %>% 
+  distinct(WL_ID_CODE, .keep_all = T) %>% 
   table1(
   ~ INIT_AGE +
     INIT_BMI_NEW +
@@ -91,3 +92,159 @@ EVENT_30 = case_when(TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
       TRUE ~ 0))
 ```
 
+=======
+---
+title: "Descriptive Statistics Presentation"
+format: html
+embed-resources: true
+---
+## Libraries
+```{r}
+library(tidyverse)
+library(survminer)
+library(table1)
+library(cmprsk)
+library(dplyr)
+```
+
+## Data Loading
+```{r}
+heart2 <- read.csv("data/heart2.csv")
+heart2_long <- read.csv("data/heart2_long.csv")
+```
+
+## Making table 1
+### Adding labeled factor versions of certain variables (for table making)
+```{r}
+# DIAB statuses/types
+heart$DIAB <- ifelse(is.na(heart$DIAB), 0, heart$DIAB) # making NA become 0s
+heart$DIAB2 <- factor(heart$DIAB, levels = c(0, 1, 2, 3, 4, 5, 998),
+                      labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
+                      ordered=TRUE)
+
+# Gender
+heart$GENDER2 <- factor(heart$GENDER, levels = c("F", "M"),
+                        labels = c("Female", "Male"),
+                        ordered = TRUE)
+
+# ETHCAT
+heart$ETHCAT2 <- factor(heart$ETHCAT, levels = c(1, 2, 4, 5, 6, 7, 9, 998),
+                        labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
+
+# EXCEPTION
+heart$EXCEPTION2 <- factor(heart$EXCEPTION, levels = c(0, 1),
+                           labels = c("No Exception", "Exception"))
+```
+
+## Cumulative Incidence Plots
+```{r}
+heart2_long <- heart2_long %>%
+  mutate(EVENT_TYPE = case_when(
+      # Death / deterioration
+      REM_CD_NEW %in% c(5,8,13) ~ 1,
+      # Transplanted (deceased or living donor)
+      REM_CD_NEW %in% c(2,3,4,14,21,22) ~ 2, 
+      # Censor everyone else
+      TRUE ~ 0),
+# Creating TIME_FROM_LANDMARK, TIME_30, and EVENT_30 Variables
+TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
+TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
+EVENT_30 = case_when(TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
+      TRUE ~ 0))
+```
+=======
+---
+title: "Descriptive Statistics Presentation"
+format: html
+---
+## Libraries
+```{r}
+library(tidyverse)
+library(table1)
+library(cmprsk)
+```
+
+## Loading in Data
+
+```{r}
+heart <- read_csv("data/clean_heart_data_long.csv")
+```
+
+
+## Making table 1
+
+### Adding labeled factor versions of certain variables (for table making)
+```{r}
+# DIAB statuses/types
+heart$DIAB <- ifelse(is.na(heart$DIAB), 0, heart$DIAB) # making NA become 0s
+heart$DIAB2 <- factor(heart$DIAB, levels = c(0, 1, 2, 3, 4, 5, 998),
+                      labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
+                      ordered=TRUE)
+
+# Gender
+heart$GENDER2 <- factor(heart$GENDER, levels = c("F", "M"),
+                        labels = c("Female", "Male"),
+                        ordered = TRUE)
+
+# ETHCAT
+heart$ETHCAT2 <- factor(heart$ETHCAT, levels = c(1, 2, 4, 5, 6, 7, 9, 998),
+                        labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
+
+# EXCEPTION
+heart$EXCEPTION2 <- factor(heart$EXCEPTION, levels = c(0, 1),
+                           labels = c("No Exception", "Exception"))
+
+# ESCALATED
+heart$ESCALATED2 <- factor(heart$ESCALATED, levels = c(0, 1),
+                           labels = c("Stable", "Esclatated"))
+```
+
+```{r}
+
+library(table1)
+
+label(heart$INIT_AGE) <- "Age at Listing"
+label(heart$INIT_BMI_NEW) <- "BMI at Listing"
+label(heart$GENDER2) <- "Gender"
+label(heart$ETHCAT2) <- "Race/Ethnicity"
+label(heart$BTYPE_REC) <- "Blood Type"
+label(heart$EXCEPTION2) <- "Exception Status"
+label(heart$DIAB2) <- "Diabetes"
+label(heart$ESCALATED2) <- "Escalated Status"
+
+# The Actual Table for Descriptive Statistics
+table1(
+  ~ INIT_AGE +
+    INIT_BMI_NEW +
+    GENDER2 +
+    ETHCAT2 +
+    BTYPE_REC +
+    EXCEPTION2 +
+    DIAB2 |
+    ESCALATED2,
+  data = heart,
+  caption = "Table 1. Descriptive Statistics by Escalation Status"
+
+)
+```
+
+## Cumulative Incidence Plots
+
+```{r}
+heart2_long <- heart2_long %>%
+  mutate(EVENT_TYPE = case_when(
+      # Death / deterioration
+      REM_CD_NEW %in% c(5,8,13) ~ 1,
+      # Transplanted (deceased or living donor)
+      REM_CD_NEW %in% c(2,3,4,14,21,22) ~ 2, 
+      # Censor everyone else
+      TRUE ~ 0),
+# Creating TIME_FROM_LANDMARK, TIME_30, and EVENT_30 Variables
+TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
+TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
+EVENT_30 = case_when(TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
+      TRUE ~ 0))
+```
+
+>>>>>>> 70ff203c8544842056c8ced0925fab999960234d
+>>>>>>> 8da89ee13b7a3473da747eb282cef804a2fb0fba

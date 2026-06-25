@@ -105,14 +105,8 @@ setdiff(analysis_ids$WL_ID_CODE, heart2$WL_ID_CODE)
 setdiff(heart2$WL_ID_CODE, analysis_ids$WL_ID_CODE)
 ```
 
-# Writing CSV files
-
+## Writing our csv's
 ```{r}
-if (!file.exists("data/clean_heart_data.csv")) {
-  write.csv(heart2, file = "data/clean_heart_data.csv")
-}
-
-if (!file.exists("data/clean_heart_data_long.csv")) {
-  write.csv(heart2_long, file = "data/clean_heart_data_long.csv")
-}
+write.csv(heart2, file = "data/heart2.csv", row.names=FALSE)
+write.csv(heart2_long, file = "data/heart2_long.csv", row.names=FALSE)
 ```
