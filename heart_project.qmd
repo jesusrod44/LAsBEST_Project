@@ -233,14 +233,35 @@ escalating_ids %>%
   distinct(WL_ID_CODE)
 ```
 
+
+
 ## Joining
 
 ```{r}
-left_join(
-  
-)
+ids_we_need <- 
+  full_join(
+    stable_ids, escalating_ids
+  ) %>% 
+  distinct()
 ```
 
+
+```{r}
+test <- 
+  left_join(
+    heart_data, ids_we_need,
+    by = "WL_ID_CODE"
+  )
+```
+
+```{r}
+test %>%
+  filter(
+    CHG_DATE >= landmark_date
+  ) %>% 
+  distinct(WL_ID_CODE)
+
+```
 
 
 
@@ -438,3 +459,93 @@ dat <- dat %>%
   )
 ```
 
+
+```{r}
+# write.csv(heart2, file = "data/clean_heart_data.csv")
+# write.csv(heart2_long, file = "data/clean_heart_data_long.csv")
+```
+
+# Descriptive Statistics
+
+```{r}
+library(tableone)
+install.packages("table1")
+library(table1)
+```
+
+```{r}
+# Install and load package
+install.packages("gtsummary")
+library(gtsummary)
+
+clean_heart_data <- 
+  read_csv("data/clean_heart_data.csv")
+clean_heart_data_long <- 
+  read_csv("data/clean_heart_data_long.csv")
+```
+
+
+
+
+
+
+
+```{r}
+clean_heart_data_long <- 
+  clean_heart_data_long %>%
+  mutate(
+    across(
+      c(WL_ID_CODE, #ID
+        WLREG_AUDIT_ID_CODE, #ID 
+        UNOS_CAND_STAT_CD_WAITLIST, 
+        UNOS_CAND_STAT_CD, 
+        EXCEPTION, 
+        REM_CD_NEW, 
+        FSTATUS, 
+        GENDER, 
+        ETHCAT, 
+        BTYPE_REC, 
+        DIAB,
+        ESCALATED),
+      as.factor
+    ),
+    across(
+      c(FTIME, 
+        INIT_BMI_NEW, 
+        INIT_AGE),
+      as.numeric
+    ),
+    across(
+      c(INIT_DATE,
+        CHG_DATE,
+        END_DATE_NEW
+      ),
+      as_date
+    )
+  )
+  
+```
+
+```{r}
+clean_heart_data_long %>% 
+  select(
+    INIT_AGE, INIT_BMI_NEW, GENDER, ETHCAT, BTYPE_REC, EXCEPTION, DIAB, ESCALATED
+  ) %>% 
+tbl_summary(by = ESCALATED) 
+```
+
+```{r}
+library(table1)
+
+table1(
+  ~ INIT_AGE +
+    INIT_BMI_NEW +
+    GENDER +
+    ETHCAT +
+    BTYPE_REC +
+    EXCEPTION +
+    DIAB
+  | ESCALATED,
+  data = clean_heart_data_long
+)
+```
