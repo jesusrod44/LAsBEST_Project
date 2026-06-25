@@ -81,16 +81,14 @@ heart2 <- groups %>%
   mutate(LANDMARK_START = DAY7_DATE,
          HORIZON_DATE = DAY7_DATE + 30, # setting horizon time and landmark start
          ESCALATED = case_when(group_num == 1 ~ 0,
-                               group_num == 2 ~ 1)) # creating escalated variable
+                               group_num == 2 ~ 1)) %>%   # creating escalated variable
+  select(-group_num) # removing group_num because we have ESCALATED now
 
 # creating long frame of analysis patients
 heart2_long <- heart %>%
   inner_join(heart2 %>% select(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), by = "WL_ID_CODE") %>%
   filter(CHG_DATE >= LANDMARK_START,
          CHG_DATE <= HORIZON_DATE) # filtering to rows in the day 7 to day 37 window
-
-# row level counts in 30 day window
-heart2_long %>% count(ESCALATED)
 ```
 
 ## Checking given IDs against ours
