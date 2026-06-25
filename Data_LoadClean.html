@@ -2274,7 +2274,7 @@ Attaching package: &#39;lubridate&#39;</code></pre>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">INIT_DATE =</span> <span class="fu">ymd</span>(INIT_DATE), <span class="co"># changing to date objects</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">CHG_DATE =</span> <span class="fu">ymd</span>(CHG_DATE),</span>
 <span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">DAY7_DATE =</span> INIT_DATE <span class="sc">+</span> <span class="dv">7</span>, <span class="co"># creating landmark time of 7 days</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">INITIAL_STATUS =</span> <span class="fu">case_when</span>( <span class="co"># recoding status numbers</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">INITIAL_STATUS =</span> <span class="fu">case_when</span>(<span class="co"># recoding status numbers</span></span>
 <span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2110</span> <span class="sc">~</span> <span class="dv">1</span>,</span>
 <span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2120</span> <span class="sc">~</span> <span class="dv">2</span>,</span>
 <span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2130</span> <span class="sc">~</span> <span class="dv">3</span>,</span>
@@ -2282,7 +2282,7 @@ Attaching package: &#39;lubridate&#39;</code></pre>
 <span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2150</span> <span class="sc">~</span> <span class="dv">5</span>,</span>
 <span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD_WAITLIST <span class="sc">==</span> <span class="dv">2160</span> <span class="sc">~</span> <span class="dv">6</span>,</span>
 <span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_real_</span>),</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">CHG_STATUS =</span> <span class="fu">case_when</span>( <span class="co"># recoding new status per row</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">CHG_STATUS =</span> <span class="fu">case_when</span>(<span class="co"># recoding new status per row</span></span>
 <span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2110</span> <span class="sc">~</span> <span class="dv">1</span>,</span>
 <span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2120</span> <span class="sc">~</span> <span class="dv">2</span>,</span>
 <span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>      UNOS_CAND_STAT_CD <span class="sc">==</span> <span class="dv">2130</span> <span class="sc">~</span> <span class="dv">3</span>,</span>
@@ -2377,6 +2377,13 @@ Attaching package: &#39;lubridate&#39;</code></pre>
 <div class="cell-output cell-output-stdout">
 <pre><code>integer(0)</code></pre>
 </div>
+</div>
+</section>
+<section id="writing-our-csvs" class="level2">
+<h2 class="anchored" data-anchor-id="writing-our-csvs">Writing our csv’s</h2>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2, <span class="at">file =</span> <span class="st">&quot;data/heart2.csv&quot;</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="fu">write.csv</span>(heart2_long, <span class="at">file =</span> <span class="st">&quot;data/heart2_long.csv&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 
