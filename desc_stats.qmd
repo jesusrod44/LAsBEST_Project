@@ -50,10 +50,25 @@ heart2$GENDER2 <- factor(heart2$GENDER, levels = c("F", "M"),
                               labels = c("Female", "Male"),
                               ordered = TRUE)
 
-# ETHCAT
-heart2$ETHCAT2 <- factor(heart2$ETHCAT, 
-                              levels = c(1, 2, 4, 5, 6, 7, 9, 998),
-                              labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
+# # ETHCAT
+# heart2$ETHCAT2 <- factor(heart2$ETHCAT, 
+#                               levels = c(1, 2, 4, 5, 6, 7, 9, 998),
+#                               labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
+heart2 <- heart2 %>%
+  mutate(
+    ETHCAT2 = case_when(
+      ETHCAT == 1 ~ "White",
+      ETHCAT == 2 ~ "Black",
+      ETHCAT == 4 ~ "Hispanic",
+      ETHCAT == 5 ~ "Asian",
+      ETHCAT %in% c(6, 7, 9, 998) ~ "Other",
+      TRUE ~ NA_character_
+    ),
+    ETHCAT2 = factor(
+      ETHCAT2,
+      levels = c("White", "Black", "Hispanic", "Asian", "Other")
+    )
+  )
 
 # EXCEPTION
 heart2$EXCEPTION2 <- factor(heart2$EXCEPTION, 
@@ -99,5 +114,57 @@ table1(
 
 ```
 
+# AGE 
 
+```{r}
+ggplot(heart2, aes(INIT_AGE)) +
+  geom_histogram(binwidth = 5, fill = "grey", color = "black") +
+  theme_bw() + 
+  labs(title = "Distribution of Age at Initial Listing")
+```
+```{r}
+ggplot(heart2, aes(y = INIT_AGE)) +
+  geom_boxplot(fill = "grey") +
+  theme_bw() +
+  labs(title = "Boxplot of Age at Initial Listing")
+```
+# BMI 
 
+```{r}
+ggplot(heart2, aes(INIT_BMI_NEW)) +
+  geom_histogram(binwidth = 2, fill = "grey", color = "black") +
+  theme_bw() + 
+  labs(title = "Distribution of BMI at Listing")
+```
+```{r}
+ggplot(heart2, aes(y = INIT_BMI_NEW)) +
+  geom_boxplot(fill = "grey", color = "black") +
+  theme_bw() +
+  labs(title = "Boxplot of Age at Initial Listing")
+```
+# Gender 
+
+```{r}
+ggplot(heart2, aes(GENDER2, fill = GENDER2)) +
+  geom_bar(color = "black") +
+  scale_fill_manual(values = c("Female" = "maroon",
+                               "Male" = "lightblue")) +
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  labs(title = "Patients grouped by Gender")
+```
+```{r}
+ggplot(heart2, aes(ETHCAT2, fill = ETHCAT2)) +
+  geom_bar() +
+  theme_minimal() + 
+  labs(title = "Patients grouped by Race/Ethnicity")
+```
+# Diabetes
+
+```{r}
+ggplot(heart2, aes(DIAB2)) +
+  geom_bar(fill = "grey", color = "black") +
+  theme_bw() + 
+  labs(title = "Patients grouped by Diabetes status")
+```
+# Exception
