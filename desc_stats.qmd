@@ -18,54 +18,64 @@ heart2 <- read.csv("data/heart2.csv")
 ```
 
 ## Making table 1
-
 ### Adding labeled factor versions of certain variables (for table making)
 ```{r}
 # DIAB statuses/types
-heart2_long$DIAB <- ifelse(is.na(heart2_long$DIAB), 
+heart2$DIAB <- ifelse(is.na(heart2$DIAB), 
                            0, 
-                           heart2_long$DIAB) # making NA become 0s
-heart2_long$DIAB2 <- factor(heart2_long$DIAB, 
-                            levels = c(0, 1, 2, 3, 4, 5, 998),
-                            labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
-                            ordered=TRUE)
+                           heart2$DIAB) # making NA become 0s
+# heart2$DIAB2 <- factor(heart2$DIAB, 
+#                             levels = c(0, 1, 2, 3, 4, 5, 998),
+#                             labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
+#                             ordered=TRUE)
+
+heart2 <- heart2 %>%
+  mutate(DIAB2 = case_when(DIAB == 1 ~ "No",
+      DIAB %in% c(2, 3, 4, 5) ~ "Yes",
+      TRUE ~ NA_character_),
+    DIAB2 = factor(
+      DIAB2,
+      levels = c("No", "Yes")))
 
 # Gender
-heart2_long$GENDER2 <- factor(heart2_long$GENDER, levels = c("F", "M"),
+heart2$GENDER2 <- factor(heart2$GENDER, levels = c("F", "M"),
                               labels = c("Female", "Male"),
                               ordered = TRUE)
 
-# ETHCAT
-heart2_long$ETHCAT2 <- factor(heart2_long$ETHCAT, 
-                              levels = c(1, 2, 4, 5, 6, 7, 9, 998),
-                              labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
+# # ETHCAT
+# heart2$ETHCAT2 <- factor(heart2$ETHCAT, 
+#                               levels = c(1, 2, 4, 5, 6, 7, 9, 998),
+#                               labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
+heart2 <- heart2 %>%
+  mutate(ETHCAT2 = case_when(
+      ETHCAT == 1 ~ "White",
+      ETHCAT == 2 ~ "Black",
+      ETHCAT == 4 ~ "Hispanic",
+      ETHCAT == 5 ~ "Asian",
+      ETHCAT %in% c(6, 7, 9, 998) ~ "Other",
+      TRUE ~ NA_character_),
+    ETHCAT2 = factor(ETHCAT2,
+      levels = c("White", "Black", "Hispanic", "Asian", "Other")))
 
 # EXCEPTION
-heart2_long$EXCEPTION2 <- factor(heart2_long$EXCEPTION, 
+heart2$EXCEPTION2 <- factor(heart2$EXCEPTION, 
                                  levels = c(0, 1),
                                  labels = c("No Exception", "Exception"))
 # ESCALATED
-heart2_long$ESCALATED2 <- factor(heart2_long$ESCALATED, levels = c(0, 1),
+heart2$ESCALATED2 <- factor(heart2$ESCALATED, levels = c(0, 1),
                            labels = c("Stable", "Esclatated"))
 ```
 
-## Descriptive Statistics Table
-
+### Descriptive Statistics Table
 ```{r}
-label(heart2_long$INIT_AGE) <- "Age at Listing"
-label(heart2_long$INIT_BMI_NEW) <- "BMI at Listing"
-label(heart2_long$GENDER2) <- "Gender"
-label(heart2_long$ETHCAT2) <- "Race/Ethnicity"
-label(heart2_long$BTYPE_REC) <- "Blood Type"
-label(heart2_long$EXCEPTION2) <- "Exception Status"
-label(heart2_long$DIAB2) <- "Diabetes"
-label(heart2_long$ESCALATED2) <- "Escalated Status"
-
-# Making a dataset with unique waitlist ID codes
-heart2_unique_id_codes <- 
-  heart2_long %>% 
-  distinct(WL_ID_CODE, .keep_all = T)
-
+label(heart2$INIT_AGE) <- "Age at Listing"
+label(heart2$INIT_BMI_NEW) <- "BMI at Listing"
+label(heart2$GENDER2) <- "Gender"
+label(heart2$ETHCAT2) <- "Race/Ethnicity"
+label(heart2$BTYPE_REC) <- "Blood Type"
+label(heart2$EXCEPTION2) <- "Exception Status"
+label(heart2$DIAB2) <- "Diabetes"
+label(heart2$ESCALATED2) <- "Escalated Status"
 
 # The Actual Table for Descriptive Statistics
 table1(
@@ -77,26 +87,122 @@ table1(
     EXCEPTION2 +
     DIAB2 |
     ESCALATED2,
-  data = heart2_unique_id_codes,
-  caption = "Table 1. Descriptive Statistics by Escalation Status"
-)
+  data = heart2,
+  caption = "Table 1. Descriptive Statistics by Escalation Status")
 ```
 
-
-
-## Cumulative Incidence Plots
+### AGE
 ```{r}
-heart2_long <- heart2_long %>%
-  mutate(EVENT_TYPE = case_when(
-      # Death / deterioration
-      REM_CD_NEW %in% c(5,8,13) ~ 1,
-      # Transplanted (deceased or living donor)
-      REM_CD_NEW %in% c(2,3,4,14,21,22) ~ 2, 
-      # Censor everyone else
-      TRUE ~ 0),
-# Creating TIME_FROM_LANDMARK, TIME_30, and EVENT_30 Variables
-TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
-TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
-EVENT_30 = case_when(TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
-      TRUE ~ 0))
+ggplot(heart2, aes(INIT_AGE)) +
+  geom_histogram(binwidth = 5, fill = "grey", color = "black") +
+  theme_bw() + 
+  labs(title = "Distribution of Age at Initial Listing",
+       ylab = "Count") +
+  scale_y_continuous(limits = c(0,800))
+```
+
+```{r}
+ggplot(heart2, aes(y = INIT_AGE)) +
+  geom_boxplot(fill = "grey") +
+  theme_bw() +
+  labs(title = "Boxplot of Age at Initial Listing") +
+  scale_x_continuous(breaks=NULL) +
+  scale_y_continuous(limits=c(18,80), breaks=seq(20,80,10))
+```
+
+### BMI 
+
+```{r}
+ggplot(heart2, aes(INIT_BMI_NEW)) +
+  geom_histogram(binwidth = 2, fill = "grey", color = "black") +
+  theme_bw() + 
+  labs(title = "Distribution of BMI at Listing",
+       y="Count") +
+  scale_x_continuous(limits=c(0,50)) +
+  scale_y_continuous(limits=c(0,800))
+```
+
+```{r}
+ggplot(heart2, aes(y = INIT_BMI_NEW)) +
+  geom_boxplot(fill = "grey", color = "black") +
+  theme_bw() +
+  labs(title = "Boxplot of BMI at Listing") +
+  scale_x_continuous(breaks = NULL) +
+  scale_y_continuous(limits=c(0,50))
+```
+
+### Gender 
+
+```{r}
+ggplot(heart2, aes(GENDER2, fill = GENDER2)) +
+  geom_bar(color = "black") +
+  scale_fill_manual(values = c("Female" = "maroon",
+                               "Male" = "lightblue")) +
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  labs(title = "Patients grouped by Gender")
+
+# proportions
+ggplot(heart2, aes(x = GENDER2, fill = GENDER2)) +
+  geom_bar(aes(y = after_stat(count / sum(count))), color = "black") +
+  scale_y_continuous(labels = scales::percent, limits=c(0,1)) +
+  scale_fill_manual(values = c("Female" = "maroon",
+                               "Male" = "lightblue")) +
+  geom_text(aes(y = after_stat(count / sum(count)),
+      label = scales::percent(after_stat(count / sum(count)), accuracy = 0.1)),
+    stat = "count",
+    vjust = -0.3,
+    size = 4) +
+  theme_minimal() + 
+  theme(legend.position = "none") +
+  labs(title = "Patients grouped by Gender",
+    x = "Gender",
+    y = "Proportion")
+```
+
+```{r}
+ggplot(heart2, aes(ETHCAT2, fill = ETHCAT2)) +
+  geom_bar() +
+  theme_minimal() + 
+  labs(title = "Patients grouped by Race/Ethnicity")
+
+# props
+ggplot(heart2, aes(x = ETHCAT2, fill = ETHCAT2)) +
+  geom_bar(aes(y = after_stat(count / sum(count)))) +
+  geom_text(aes(y = after_stat(count / sum(count)),
+      label = scales::percent(after_stat(count / sum(count)), accuracy = 0.1)),
+    stat = "count",
+    vjust = -0.3,
+    size = 4) +
+  scale_y_continuous(labels = scales::percent, limits=c(0,1)) +
+  theme_minimal() + 
+  labs(title = "Distribution of Patients by Race/Ethnicity",
+    x = "Race/Ethnicity",
+    y = "Proportion")
+```
+
+### Diabetes
+
+```{r}
+ggplot(heart2, aes(DIAB2)) +
+  geom_bar(fill = "grey", color = "black") +
+  theme_bw() + 
+  labs(title = "Patients grouped by Diabetes status")
+
+# props
+ggplot(heart2, aes(x = DIAB2)) +
+  geom_bar(aes(y = after_stat(count / sum(count))),
+           fill = "grey", color = "black") +
+  geom_text(aes(y = after_stat(count / sum(count)),
+      label = scales::percent(after_stat(count / sum(count)), accuracy = 0.1)),
+    stat = "count",
+    vjust = -0.3,
+    size = 4) +
+  scale_y_continuous(labels = scales::percent,
+                     limits=c(0,1),
+                     expand = expansion(mult = c(0, 0.1))) +
+  theme_bw() + 
+  labs(title = "Proportion of Patients by Diabetes Status",
+    x = "Diabetes Status",
+    y = "Proportion")
 ```
