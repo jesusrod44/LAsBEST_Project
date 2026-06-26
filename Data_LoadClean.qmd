@@ -84,6 +84,11 @@ heart2 <- groups %>%
                                group_num == 2 ~ 1)) %>%   # creating escalated variable
   select(-group_num) # removing group_num because we have ESCALATED now
 
+# joining heart2 with heart to get all missing variables
+heart_sub <- heart %>%
+  select(WL_ID_CODE, EXCEPTION, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW, INIT_AGE, ETHCAT, DIAB, BTYPE_REC)
+heart2 <- left_join(heart2, heart_sub, by = "WL_ID_CODE")
+
 # creating long frame of analysis patients
 heart2_long <- heart %>%
   inner_join(heart2 %>% select(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), by = "WL_ID_CODE") %>%
@@ -106,5 +111,4 @@ setdiff(heart2$WL_ID_CODE, analysis_ids$WL_ID_CODE)
 ## Writing our csv's
 ```{r}
 write.csv(heart2, file = "data/heart2.csv", row.names=FALSE)
-write.csv(heart2_long, file = "data/heart2_long.csv", row.names=FALSE)
 ```
