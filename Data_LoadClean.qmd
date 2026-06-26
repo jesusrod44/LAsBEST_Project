@@ -86,7 +86,9 @@ heart2 <- groups %>%
 
 # joining heart2 with heart to get all missing variables
 heart_sub <- heart %>%
-  select(WL_ID_CODE, EXCEPTION, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW, INIT_AGE, ETHCAT, DIAB, BTYPE_REC)
+  select(WL_ID_CODE, EXCEPTION, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW,
+         INIT_AGE, ETHCAT, DIAB, BTYPE_REC) %>%
+  distinct(WL_ID_CODE, .keep_all = TRUE)
 heart2 <- left_join(heart2, heart_sub, by = "WL_ID_CODE")
 
 # creating long frame of analysis patients
@@ -108,7 +110,7 @@ setdiff(analysis_ids$WL_ID_CODE, heart2$WL_ID_CODE)
 setdiff(heart2$WL_ID_CODE, analysis_ids$WL_ID_CODE)
 ```
 
-## Writing our csv's
+## Writing our analysis csv
 ```{r}
 write.csv(heart2, file = "data/heart2.csv", row.names=FALSE)
 ```
