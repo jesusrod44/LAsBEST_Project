@@ -155,7 +155,7 @@ ggplot(heart2, aes(x = GENDER2, fill = GENDER2)) +
     size = 4) +
   theme_minimal() + 
   theme(legend.position = "none") +
-  labs(title = "Patients grouped by Gender",
+  labs(title = "Distribution of Gender",
     x = "Gender",
     y = "Proportion")
 ```
