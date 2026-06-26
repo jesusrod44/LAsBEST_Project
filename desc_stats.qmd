@@ -164,7 +164,7 @@ ggplot(heart2, aes(x = GENDER2, fill = GENDER2)) +
 ggplot(heart2, aes(ETHCAT2, fill = ETHCAT2)) +
   geom_bar() +
   theme_minimal() + 
-  labs(title = "Patients grouped by Race/Ethnicity")
+  labs(title = "Patients grouped by Ethnicity")
 
 # props
 ggplot(heart2, aes(x = ETHCAT2, fill = ETHCAT2)) +
@@ -176,7 +176,7 @@ ggplot(heart2, aes(x = ETHCAT2, fill = ETHCAT2)) +
     size = 4) +
   scale_y_continuous(labels = scales::percent, limits=c(0,1)) +
   theme_minimal() + 
-  labs(title = "Distribution of Patients by Race/Ethnicity",
+  labs(title = "Distribution of Patients by Ethnicity",
     x = "Race/Ethnicity",
     y = "Proportion")
 ```
