@@ -27,10 +27,23 @@ heart2 <- read.csv("data/heart2.csv")
 heart2$DIAB <- ifelse(is.na(heart2$DIAB), 
                            0, 
                            heart2$DIAB) # making NA become 0s
-heart2$DIAB2 <- factor(heart2$DIAB, 
-                            levels = c(0, 1, 2, 3, 4, 5, 998),
-                            labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
-                            ordered=TRUE)
+# heart2$DIAB2 <- factor(heart2$DIAB, 
+#                             levels = c(0, 1, 2, 3, 4, 5, 998),
+#                             labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
+#                             ordered=TRUE)
+
+heart2 <- heart2 %>%
+  mutate(
+    DIAB2 = case_when(
+      DIAB == 1 ~ "No",
+      DIAB %in% c(2, 3, 4, 5) ~ "Yes",
+      TRUE ~ NA_character_
+    ),
+    DIAB2 = factor(
+      DIAB2,
+      levels = c("No", "Yes")
+    )
+  )
 
 # Gender
 heart2$GENDER2 <- factor(heart2$GENDER, levels = c("F", "M"),
