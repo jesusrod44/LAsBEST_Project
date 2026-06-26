@@ -15,8 +15,6 @@ library(dplyr)
 ## Data Loading
 ```{r}
 heart2 <- read.csv("data/heart2.csv")
-heart2_long <- read.csv("data/heart2_long.csv")
-
 ```
 
 ## Making table 1
