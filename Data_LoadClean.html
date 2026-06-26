@@ -2354,10 +2354,10 @@ Attaching package: &#39;lubridate&#39;</code></pre>
 <span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>heart2 <span class="ot">&lt;-</span> <span class="fu">left_join</span>(heart2, heart_sub, <span class="at">by =</span> <span class="st">&quot;WL_ID_CODE&quot;</span>)</span>
 <span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="co"># creating long frame of analysis patients</span></span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>heart2_long <span class="ot">&lt;-</span> heart <span class="sc">%&gt;%</span></span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">inner_join</span>(heart2 <span class="sc">%&gt;%</span> <span class="fu">select</span>(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), <span class="at">by =</span> <span class="st">&quot;WL_ID_CODE&quot;</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(CHG_DATE <span class="sc">&gt;=</span> LANDMARK_START,</span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>         CHG_DATE <span class="sc">&lt;=</span> HORIZON_DATE) <span class="co"># filtering to rows in the day 7 to day 37 window</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="co">#heart2_long &lt;- heart %&gt;%</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="co">#  inner_join(heart2 %&gt;% select(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), by = &quot;WL_ID_CODE&quot;) %&gt;%</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="co">#  filter(CHG_DATE &gt;= LANDMARK_START,</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="co">#         CHG_DATE &lt;= HORIZON_DATE) # filtering to rows in the day 7 to day 37 window</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="checking-given-ids-against-ours" class="level2">

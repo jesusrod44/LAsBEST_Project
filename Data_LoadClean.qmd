@@ -92,10 +92,10 @@ heart_sub <- heart %>%
 heart2 <- left_join(heart2, heart_sub, by = "WL_ID_CODE")
 
 # creating long frame of analysis patients
-heart2_long <- heart %>%
-  inner_join(heart2 %>% select(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), by = "WL_ID_CODE") %>%
-  filter(CHG_DATE >= LANDMARK_START,
-         CHG_DATE <= HORIZON_DATE) # filtering to rows in the day 7 to day 37 window
+#heart2_long <- heart %>%
+#  inner_join(heart2 %>% select(WL_ID_CODE, LANDMARK_START, HORIZON_DATE, ESCALATED), by = "WL_ID_CODE") %>%
+#  filter(CHG_DATE >= LANDMARK_START,
+#         CHG_DATE <= HORIZON_DATE) # filtering to rows in the day 7 to day 37 window
 ```
 
 ## Checking given IDs against ours
