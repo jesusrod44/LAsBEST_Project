@@ -15,7 +15,7 @@ library(dplyr)
 ## Data Loading
 ```{r}
 heart2 <- read.csv("data/heart2.csv")
-heart2_long <- read.csv("data/heart2_long.csv")
+# heart2_long <- read.csv("data/heart2_long.csv")
 
 ```
 
@@ -24,48 +24,48 @@ heart2_long <- read.csv("data/heart2_long.csv")
 ### Adding labeled factor versions of certain variables (for table making)
 ```{r}
 # DIAB statuses/types
-heart2_long$DIAB <- ifelse(is.na(heart2_long$DIAB), 
+heart2$DIAB <- ifelse(is.na(heart2$DIAB), 
                            0, 
-                           heart2_long$DIAB) # making NA become 0s
-heart2_long$DIAB2 <- factor(heart2_long$DIAB, 
+                           heart2$DIAB) # making NA become 0s
+heart2$DIAB2 <- factor(heart2$DIAB, 
                             levels = c(0, 1, 2, 3, 4, 5, 998),
                             labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
                             ordered=TRUE)
 
 # Gender
-heart2_long$GENDER2 <- factor(heart2_long$GENDER, levels = c("F", "M"),
+heart2$GENDER2 <- factor(heart2$GENDER, levels = c("F", "M"),
                               labels = c("Female", "Male"),
                               ordered = TRUE)
 
 # ETHCAT
-heart2_long$ETHCAT2 <- factor(heart2_long$ETHCAT, 
+heart2$ETHCAT2 <- factor(heart2$ETHCAT, 
                               levels = c(1, 2, 4, 5, 6, 7, 9, 998),
                               labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
 
 # EXCEPTION
-heart2_long$EXCEPTION2 <- factor(heart2_long$EXCEPTION, 
+heart2$EXCEPTION2 <- factor(heart2$EXCEPTION, 
                                  levels = c(0, 1),
                                  labels = c("No Exception", "Exception"))
 # ESCALATED
-heart2_long$ESCALATED2 <- factor(heart2_long$ESCALATED, levels = c(0, 1),
+heart2$ESCALATED2 <- factor(heart2$ESCALATED, levels = c(0, 1),
                            labels = c("Stable", "Esclatated"))
 ```
 
 ## Descriptive Statistics Table
 
 ```{r}
-label(heart2_long$INIT_AGE) <- "Age at Listing"
-label(heart2_long$INIT_BMI_NEW) <- "BMI at Listing"
-label(heart2_long$GENDER2) <- "Gender"
-label(heart2_long$ETHCAT2) <- "Race/Ethnicity"
-label(heart2_long$BTYPE_REC) <- "Blood Type"
-label(heart2_long$EXCEPTION2) <- "Exception Status"
-label(heart2_long$DIAB2) <- "Diabetes"
-label(heart2_long$ESCALATED2) <- "Escalated Status"
+label(heart2$INIT_AGE) <- "Age at Listing"
+label(heart2$INIT_BMI_NEW) <- "BMI at Listing"
+label(heart2$GENDER2) <- "Gender"
+label(heart2$ETHCAT2) <- "Race/Ethnicity"
+label(heart2$BTYPE_REC) <- "Blood Type"
+label(heart2$EXCEPTION2) <- "Exception Status"
+label(heart2$DIAB2) <- "Diabetes"
+label(heart2$ESCALATED2) <- "Escalated Status"
 
 # Making a dataset with unique waitlist ID codes
 heart2_unique_id_codes <- 
-  heart2_long %>% 
+  heart2 %>% 
   distinct(WL_ID_CODE, .keep_all = T)
 
 
@@ -82,23 +82,9 @@ table1(
   data = heart2_unique_id_codes,
   caption = "Table 1. Descriptive Statistics by Escalation Status"
 )
+
+
 ```
 
 
 
-## Cumulative Incidence Plots
-```{r}
-heart2_long <- heart2_long %>%
-  mutate(EVENT_TYPE = case_when(
-      # Death / deterioration
-      REM_CD_NEW %in% c(5,8,13) ~ 1,
-      # Transplanted (deceased or living donor)
-      REM_CD_NEW %in% c(2,3,4,14,21,22) ~ 2, 
-      # Censor everyone else
-      TRUE ~ 0),
-# Creating TIME_FROM_LANDMARK, TIME_30, and EVENT_30 Variables
-TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
-TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
-EVENT_30 = case_when(TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
-      TRUE ~ 0))
-```
