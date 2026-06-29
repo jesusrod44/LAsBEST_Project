@@ -1,0 +1,193 @@
+---
+title: "Heart Transplant Project - LA's BeST 2026"
+author: "Jesus Rodriguez, Sydney Shimizu, Julia Aptekar"
+format: html
+embed-resources: true
+---
+
+```{r setup,  output = F, message = F, warning= F}
+library(tidyverse) # general tidying and manipulation
+library(readxl) # reading xlsx files
+library(kableExtra) # nice tables
+library(lubridate) # easier working with dates
+library(survival)
+library(survminer)
+library(table1)
+library(cmprsk)
+library(KMsurv)
+```
+
+# Loading in Data
+
+```{r, output = F, message = F, warning= F}
+heart_data <- read.csv("data/heart2.csv")
+str(heart_data)
+```
+
+## Formatting columns
+
+```{r}
+heart_data <- heart_data %>% 
+  mutate(
+    DIAB = factor(
+      if_else(
+        DIAB == 1, 
+        "No", 
+        if_else(
+          DIAB %in% c(2, 3, 4, 5), 
+          "Yes", 
+          NA_character_)
+        ),
+      levels = c("No", "Yes")
+    ),
+    ETHCAT = factor(
+      case_when(
+        ETHCAT == 1 ~ "White",
+        ETHCAT == 2 ~ "Black",
+        ETHCAT == 4 ~ "Hispanic",
+        ETHCAT == 5 ~ "Asian",
+        ETHCAT %in% c(6, 7, 9, 998) ~ "Other"
+      ),
+      levels = c("White", "Black", "Hispanic", "Asian", "Other")
+    ),
+    across(
+      c(WL_ID_CODE, 
+        INITIAL_STATUS, 
+        STATUS_DAY7, 
+        EXCEPTION, 
+        REM_CD_NEW,
+        FSTATUS, 
+        GENDER, 
+        BTYPE_REC, 
+        ESCALATED), 
+      as.factor
+      ),
+    across(
+      c(FTIME, 
+        INIT_BMI_NEW, 
+        INIT_AGE), 
+      as.numeric
+      ),
+    across(
+      c(INIT_DATE, 
+        DAY7_DATE, 
+        LANDMARK_START, 
+        HORIZON_DATE), 
+      as_date)
+  )
+```
+
+## Cleaning
+
+```{r}
+
+# Compare Cumulative Incidence of Death/Deterioration and Cumulative Incidence of Heart Transplantation
+
+heart_data <- heart_data %>%
+  mutate(
+    EVENT_TYPE = case_when(
+      # Death / deterioration
+      REM_CD_NEW %in% c(5,8,13) ~ 1,
+      
+      # Transplanted (deceased or living donor)
+      REM_CD_NEW %in% c(2,3,4,14,21,22) ~ 2, 
+      
+      # Censor everyone else
+      TRUE ~ 0
+    ),
+    
+    # Creating TIME_FROM_LANDMARK, TIME_30, and EVENT_30 Variables
+    
+    TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
+    
+    TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
+    
+    EVENT_30 = case_when(
+      TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
+      TRUE ~ 0
+    )
+  )
+
+```
+
+Create Labels for Status
+
+```{r}
+
+# Create Labels for Status #
+
+heart_data <- heart_data %>%
+  filter(!is.na(TIME_30), !is.na(EVENT_30), !is.na(ESCALATED)) %>%
+  mutate(ESCALATED = factor(ESCALATED, levels = c(0, 1),
+                            labels = c("Stable", "Escalated")))
+```
+
+# Survival Analysis with Competing Risks
+
+Models
+
+Subdistribution Hazard Models and Cause-Specific Hazard Models
+
+# Covariance Matrix Setup
+
+```{r}
+vars <- c("TIME_30", "EVENT_30", "ESCALATED", "GENDER", "INIT_AGE",
+          "INIT_BMI_NEW", "ETHCAT", "DIAB", "BTYPE_REC", "EXCEPTION")
+
+heart_matrix <- heart_data[complete.cases(heart_data[, vars]), vars]
+
+covariance_matrix <- model.matrix(
+  ~ ESCALATED + GENDER + INIT_AGE + INIT_BMI_NEW + ETHCAT + DIAB + BTYPE_REC + EXCEPTION,
+  data = heart_matrix
+)[, -1]  # drop intercept
+```
+
+# Solo Variable Models
+
+## Cause-Specific
+
+```{r}
+# Model 1 : Death / Deterioration
+cs_model_death <- 
+  heart_data %>% 
+  coxph(
+  Surv(TIME_30, EVENT_30 == 1) ~ 
+    ESCALATED,
+  data = .
+)
+summary(cs_model_death)
+
+
+# Model 2 : Transplantation
+cs_model_transplant <- coxph(
+  Surv(TIME_30, EVENT_30 == 2) ~ 
+    ESCALATED,
+  data = heart_data
+)
+summary(cs_model_transplant)
+```
+
+## Sub-Distribution Models
+
+```{r}
+
+# Fine-Gray subdistribution Model 1: Death / Deterioration
+crr_death <- crr(
+  ftime   = heart_matrix$TIME_30,
+  fstatus = heart_matrix$EVENT_30,
+  cov1    = covariance_matrix[,1],
+  failcode = 1,
+  cencode  = 0
+)
+summary(crr_death)
+
+# Fine-Gray subdistribution Model 2: Transplant
+crr_transplant <- crr(
+  ftime   = heart_matrix$TIME_30,
+  fstatus = heart_matrix$EVENT_30,
+  cov1    = covariance_matrix[,1],
+  failcode = 2,
+  cencode  = 0
+)
+summary(crr_transplant)
+```
