@@ -3,7 +3,9 @@ title: "Descriptive Statistics Presentation"
 format: html
 embed-resources: true
 ---
+
 ## Libraries
+
 ```{r}
 library(tidyverse)
 library(survminer)
@@ -13,12 +15,14 @@ library(dplyr)
 ```
 
 ## Data Loading
+
 ```{r}
 heart2 <- read.csv("data/heart2.csv")
 ```
 
 ## Making table 1
 ### Adding labeled factor versions of certain variables (for table making)
+
 ```{r}
 # DIAB statuses/types
 heart2$DIAB <- ifelse(is.na(heart2$DIAB), 
@@ -67,6 +71,7 @@ heart2$ESCALATED2 <- factor(heart2$ESCALATED, levels = c(0, 1),
 ```
 
 ### Descriptive Statistics Table
+
 ```{r}
 label(heart2$INIT_AGE) <- "Age at Listing"
 label(heart2$INIT_BMI_NEW) <- "BMI at Listing"
@@ -111,6 +116,7 @@ ggplot(heart2, aes(y = INIT_AGE)) +
 ```
 
 ### BMI 
+
 ```{r}
 ggplot(heart2, aes(INIT_BMI_NEW)) +
   geom_histogram(binwidth = 2, fill = "grey", color = "black") +
@@ -131,6 +137,7 @@ ggplot(heart2, aes(y = INIT_BMI_NEW)) +
 ```
 
 ### Gender 
+
 ```{r}
 ggplot(heart2, aes(GENDER2, fill = GENDER2)) +
   geom_bar(color = "black") +
@@ -174,12 +181,13 @@ ggplot(heart2, aes(x = ETHCAT2, fill = ETHCAT2)) +
     size = 4) +
   scale_y_continuous(labels = scales::percent, limits=c(0,1)) +
   theme_minimal() + 
-  labs(title = "Distribution of Patients by Race/Ethnicity",
+  labs(title = "Distribution of Patients by Ethnicity",
     x = "Race/Ethnicity",
     y = "Proportion")
 ```
 
 ### Diabetes
+
 ```{r}
 ggplot(heart2, aes(DIAB2)) +
   geom_bar(fill = "grey", color = "black") +
