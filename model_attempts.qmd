@@ -110,7 +110,7 @@ heart_data <- heart_data %>%
 
 ```
 
-Create Labels for Status
+## Create Labels for Status
 
 ```{r}
 
@@ -124,8 +124,7 @@ heart_data <- heart_data %>%
 
 # Survival Analysis with Competing Risks
 
-Models
-
+Models:
 Subdistribution Hazard Models and Cause-Specific Hazard Models
 
 # Covariance Matrix Setup
@@ -157,7 +156,6 @@ cs_model_death <-
 )
 summary(cs_model_death)
 
-
 # Model 2 : Transplantation
 cs_model_transplant <- coxph(
   Surv(TIME_30, EVENT_30 == 2) ~ 
@@ -170,7 +168,6 @@ summary(cs_model_transplant)
 ## Sub-Distribution Models
 
 ```{r}
-
 # Fine-Gray subdistribution Model 1: Death / Deterioration
 crr_death <- crr(
   ftime   = heart_matrix$TIME_30,
