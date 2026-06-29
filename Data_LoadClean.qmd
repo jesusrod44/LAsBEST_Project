@@ -113,5 +113,4 @@ setdiff(heart2$WL_ID_CODE, analysis_ids$WL_ID_CODE)
 ## Writing our analysis csv
 ```{r}
 write.csv(heart2, file = "data/heart2.csv", row.names=FALSE)
->>>>>>> b13d7502529d8bc2bc782f4c5198b8a42009eb7e
 ```

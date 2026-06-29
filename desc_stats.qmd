@@ -4,7 +4,7 @@ format: html
 embed-resources: true
 ---
 ## Libraries
-```{r setup}
+```{r}
 library(tidyverse)
 library(survminer)
 library(table1)
@@ -89,13 +89,12 @@ table1(
     ESCALATED2,
   data = heart2,
   caption = "Table 1. Descriptive Statistics by Escalation Status")
-
 ```
 
 ### AGE
 ```{r}
 ggplot(heart2, aes(INIT_AGE)) +
-  geom_histogram(bins = 20, fill = "grey", color = "black") +
+  geom_histogram(binwidth = 5, fill = "grey", color = "black") +
   theme_bw() + 
   labs(title = "Distribution of Age at Initial Listing",
        ylab = "Count") +
@@ -115,12 +114,12 @@ ggplot(heart2, aes(y = INIT_AGE)) +
 
 ```{r}
 ggplot(heart2, aes(INIT_BMI_NEW)) +
-  geom_histogram(binwidth = 1, fill = "grey", color = "black") +
+  geom_histogram(binwidth = 2, fill = "grey", color = "black") +
   theme_bw() + 
   labs(title = "Distribution of BMI at Listing",
        y="Count") +
   scale_x_continuous(limits=c(0,50)) +
-  scale_y_continuous(limits=c(0,800)) 
+  scale_y_continuous(limits=c(0,800))
 ```
 
 ```{r}
@@ -165,7 +164,7 @@ ggplot(heart2, aes(x = GENDER2, fill = GENDER2)) +
 ggplot(heart2, aes(ETHCAT2, fill = ETHCAT2)) +
   geom_bar() +
   theme_minimal() + 
-  labs(title = "Patients grouped by Race/Ethnicity")
+  labs(title = "Patients grouped by Ethnicity")
 
 # props
 ggplot(heart2, aes(x = ETHCAT2, fill = ETHCAT2)) +
@@ -177,7 +176,7 @@ ggplot(heart2, aes(x = ETHCAT2, fill = ETHCAT2)) +
     size = 4) +
   scale_y_continuous(labels = scales::percent, limits=c(0,1)) +
   theme_minimal() + 
-  labs(title = "Distribution of Patients by Race/Ethnicity",
+  labs(title = "Distribution of Patients by Ethnicity",
     x = "Race/Ethnicity",
     y = "Proportion")
 ```
