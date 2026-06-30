@@ -3,7 +3,9 @@ title: "Descriptive Statistics Presentation"
 format: html
 embed-resources: true
 ---
+
 ## Libraries
+
 ```{r}
 library(tidyverse)
 library(survminer)
@@ -13,12 +15,14 @@ library(dplyr)
 ```
 
 ## Data Loading
+
 ```{r}
 heart2 <- read.csv("data/heart2.csv")
 ```
 
 ## Making table 1
 ### Adding labeled factor versions of certain variables (for table making)
+
 ```{r}
 # DIAB statuses/types
 heart2$DIAB <- ifelse(is.na(heart2$DIAB), 
@@ -67,6 +71,7 @@ heart2$ESCALATED2 <- factor(heart2$ESCALATED, levels = c(0, 1),
 ```
 
 ### Descriptive Statistics Table
+
 ```{r}
 label(heart2$INIT_AGE) <- "Age at Listing"
 label(heart2$INIT_BMI_NEW) <- "BMI at Listing"

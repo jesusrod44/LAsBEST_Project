@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Heart Transplant Project - LA's BeST 2026"
 author: "Jesus Rodriguez, Sydney Shimizu, Julia Aptekar"
@@ -216,7 +217,4 @@ crr_transplant <- crr(
 
 Escalated patients have a 13% higher subdistribution hazard of transplant. 
 
-~Patients who escalated to status 2, are a bit more likely to have transplantation as an outcome.
-
-
-
+Patients who escalated to status 2, are a bit more likely to have transplantation as an outcome.
