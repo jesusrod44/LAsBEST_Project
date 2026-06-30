@@ -3,15 +3,16 @@ title: "CIF Plot"
 author: "Sydney Shimizu"
 format: html
 editor: visual
+embed-resources: true
 ---
 
 ## CIF Plotting
 
 ```{r}
 
-heart2<-read.csv("C:/Users/12063/Downloads/clean_heart_data_long.csv")
+heart2<-read.csv("C:/Users/12063/Downloads/heart2 (2).csv")
 
-# install.packages("survminer") #
+# install.packages("survminer") 
 
 library(cmprsk)
 library(survminer)
@@ -46,6 +47,9 @@ TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
       TRUE ~ 0
     )
 )
+
+table(heart2$EVENT_30)
+table(heart2$ESCALATED)
   
 ```
 
@@ -63,10 +67,16 @@ heart_clean <- heart2 %>%
 
 # Creating CIF Fit
 cif_fit <- cuminc(
-  ftime   = heart2$TIME_30,
-  fstatus = heart2$EVENT_TYPE,
-  group   = heart2$ESCALATED
+  ftime   = heart_clean$TIME_30,
+  fstatus = heart_clean$EVENT_TYPE,
+  group   = heart_clean$ESCALATED
 )
+
+cif_fit$Tests
+table(heart_clean$ESCALATED, heart2$EVENT_30)
+unique(heart_clean[,"ESCALATED"])
+
+
 ```
 
 ```{r}
@@ -76,11 +86,15 @@ cif_fit <- cuminc(
 pval_transplant    <- round(cif_fit$Tests["2", "pv"], 3)
 pval_death         <- round(cif_fit$Tests["1", "pv"], 3)
 
-pval_label <- paste0(
-  "Transplanted: p-value = ", pval_transplant, "\n",
-  "Death/Deterioration: p-value = ", pval_death
-)
+# Nicely formats small p-values as e.g. "< 0.001"
+format_pval <- function(p) {
+  ifelse(p < 0.001, "< 0.001", as.character(round(p, 3)))
+}
 
+pval_label <- paste0(
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Death/Deterioration: p-value = ", format_pval(pval_death)
+)
 ```
 
 ```{r}
@@ -92,7 +106,8 @@ ggcompetingrisks(
   multiple_panels = FALSE,
   conf.int        = FALSE,
   palette         = c("#E69F00", "#56B4E9", "#E69F00", "#56B4E9"),
-  linetype        = c("dotted", "solid", "dotted", "solid")
+  linetype        = c("dotted", "solid", "dotted", "solid"),
+  size            = 1.5
 ) +
   annotate(
     "text",
@@ -115,7 +130,7 @@ ggcompetingrisks(
     labels = c("Stable", "Escalated", "Stable", "Escalated")
   ) +
   labs(
-    x        = "Days since initial listing",
+    x        = "Days since landmark time",
     y        = "Cumulative incidence function",
     color    = "Event",
     linetype = "Group"
@@ -128,4 +143,94 @@ ggcompetingrisks(
     axis.text        = element_text(size = 11),
     panel.grid.minor = element_blank()
   )
+
+ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/cifplot.png", width = 8, height = 6, dpi = 300)
+```
+
+## Figures
+
+```{r}
+# BOXPLOTS FOR CONT VARS
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+heart2 %>%
+  select(INIT_AGE, INIT_BMI_NEW) %>%
+  drop_na() %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "value") %>%
+  mutate(variable = recode(variable,
+                           "INIT_AGE"     = "Age",
+                           "INIT_BMI_NEW" = "BMI")) %>%
+  ggplot(aes(x = variable, y = value, fill = variable)) +
+  geom_boxplot(outlier.shape = 21, outlier.size = 1.5, alpha = 0.7) +
+  facet_wrap(~variable, scales = "free") +
+  scale_fill_manual(values = c("Age" = "#009E73", "BMI" = "#CC79A7")) +
+  labs(
+    x     = NULL,
+    y     = "Value",
+    title = "Distribution of Age and BMI"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position  = "none",
+    strip.text       = element_text(face = "bold", size = 11),
+    axis.title       = element_text(face = "bold", size = 12),
+    axis.text        = element_text(size = 11),
+    panel.grid.minor = element_blank()
+  )
+
+ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/boxplot.png", width=8, height=6, dpi=300)
+```
+
+```{r}
+mean(heart2$INIT_BMI_NEW,na.rm=TRUE)
+mean(heart2$INIT_AGE,na.rm=TRUE)
+
+```
+
+```{r}
+library(ggplot2)
+library(patchwork)  # for combining plots side by side
+
+p_age <- heart2 %>%
+  select(INIT_AGE) %>%
+  drop_na() %>%
+  ggplot(aes(x = INIT_AGE)) +
+  geom_histogram(fill = "#009E73", color = "white", bins = 30) +
+  labs(
+    x     = "Age (years)",
+    y     = "Count",
+    title = "Distribution of Age"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title       = element_text(face = "bold", size = 12),
+    axis.title       = element_text(face = "bold", size = 11),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+p_bmi <- heart2 %>%
+  select(INIT_BMI_NEW) %>%
+  drop_na() %>%
+  ggplot(aes(x = INIT_BMI_NEW)) +
+  geom_histogram(fill = "#CC79A7", color = "white", bins = 30) +
+  labs(
+    x     = "BMI (kg/m²)",
+    y     = "Count",
+    title = "Distribution of BMI"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title       = element_text(face = "bold", size = 12),
+    axis.title       = element_text(face = "bold", size = 11),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+p_age + p_bmi
+
+ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/histograms.png", width=8, height=6, dpi=300)
 ```
