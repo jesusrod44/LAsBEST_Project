@@ -102,9 +102,10 @@ heart_data <- heart_data %>%
     
     TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
     
-    EVENT_30 = case_when(
+    EVENT_30 = factor(case_when(
       TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
       TRUE ~ 0
+    )
     )
   )
 
@@ -139,15 +140,18 @@ heart_matrix <- heart_data[complete.cases(heart_data[, vars]), vars]
 covariance_matrix <- model.matrix(
   ~ ESCALATED + GENDER + INIT_AGE + INIT_BMI_NEW + ETHCAT + DIAB + BTYPE_REC + EXCEPTION,
   data = heart_matrix
-)[, -1]  # drop intercept
+)[, -1] 
+
+str(heart_matrix)
+# drop intercept
 ```
 
-# Solo Variable Models
+# Solo Variable Models (Unadjusted Models)
 
 ## Cause-Specific
 
 ```{r}
-# Model 1 : Death / Deterioration
+# Cox Model 1 : Death / Deterioration
 cs_model_death <- 
   heart_data %>% 
   coxph(
@@ -156,9 +160,11 @@ cs_model_death <-
   data = .
 )
 summary(cs_model_death)
+```
 
+```{r}
 
-# Model 2 : Transplantation
+# Cox Model 2 : Transplantation
 cs_model_transplant <- coxph(
   Surv(TIME_30, EVENT_30 == 2) ~ 
     ESCALATED,
@@ -176,18 +182,41 @@ crr_death <- crr(
   ftime   = heart_matrix$TIME_30,
   fstatus = heart_matrix$EVENT_30,
   cov1    = covariance_matrix[,1],
-  failcode = 1,
-  cencode  = 0
-)
-summary(crr_death)
+  failcode = 1
+  ) ; summary(crr_death)
 
+# summary(crr_death)$coef[2]
+
+
+# round(1-summary(crr_death)$coef[2], 2)
+
+```
+
+**Barebones Interpretation, needs work**
+
+With a hazard ratio of `r summary(crr_death)$coef[2]` and a p-value of `r summary(crr_death)$coef[5]`. Escalated patients have a `r round(1-summary(crr_death)$coef[2], 2)*100`% lower subdistribution hazard of death/deterioration compared to stable patients
+
+Which is good, if you escalated to status 2 for a heart transplant, it would be nice to hear that death is less likely than a transplant.
+
+
+
+
+```{r}
 # Fine-Gray subdistribution Model 2: Transplant
 crr_transplant <- crr(
   ftime   = heart_matrix$TIME_30,
   fstatus = heart_matrix$EVENT_30,
   cov1    = covariance_matrix[,1],
-  failcode = 2,
-  cencode  = 0
-)
-summary(crr_transplant)
+  failcode = 2
+  ) ; summary(crr_transplant)
+
 ```
+
+**Barebones Interpretation, needs work**
+
+Escalated patients have a 13% higher subdistribution hazard of transplant. 
+
+~Patients who escalated to status 2, are a bit more likely to have transplantation as an outcome.
+
+
+
