@@ -4,7 +4,8 @@ author: "Sydney Shimizu"
 format: html
 editor: visual
 ---
-# CIF Plot Document 
+
+# CIF Plot Document
 
 ## CIF Plotting
 
@@ -42,7 +43,7 @@ TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
     
 TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
 
- EVENT_30 = factor(case_when(
+ EVENT_30 = (case_when(
       TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
       TRUE ~ 0
     )
