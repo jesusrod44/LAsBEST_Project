@@ -4,12 +4,13 @@ author: "Sydney Shimizu"
 format: html
 editor: visual
 ---
+# CIF Plot Document 
 
 ## CIF Plotting
 
 ```{r}
 
-heart2<-read.csv("C:/Users/12063/Downloads/clean_heart_data_long.csv")
+heart2<-read.csv("data/clean_heart_data_long.csv")
 
 # install.packages("survminer") #
 
@@ -41,10 +42,11 @@ TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
     
 TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
 
- EVENT_30 = case_when(
+ EVENT_30 = factor(case_when(
       TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
       TRUE ~ 0
     )
+)
 )
   
 ```
