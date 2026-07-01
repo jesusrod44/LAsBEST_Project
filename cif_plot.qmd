@@ -187,7 +187,6 @@ ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/boxplot.png", width=8,
 ```{r}
 mean(heart2$INIT_BMI_NEW,na.rm=TRUE)
 mean(heart2$INIT_AGE,na.rm=TRUE)
-
 ```
 
 ```{r}
@@ -234,4 +233,3 @@ p_age + p_bmi
 
 ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/histograms.png", width=8, height=6, dpi=300)
 ```
->>>>>>> b4b68dd932f3b77685d79907564e2b4d870b7cbe
