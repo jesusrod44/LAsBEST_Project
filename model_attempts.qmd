@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ---
 title: "Heart Transplant Project - LA's BeST 2026"
 author: "Jesus Rodriguez, Sydney Shimizu, Julia Aptekar"
@@ -115,7 +114,6 @@ heart_data <- heart_data %>%
 Create Labels for Status
 
 ```{r}
-
 # Create Labels for Status #
 
 heart_data <- heart_data %>%
@@ -143,13 +141,12 @@ covariance_matrix <- model.matrix(
   data = heart_matrix
 )[, -1] 
 
-str(heart_matrix)
-# drop intercept
+# str(heart_matrix)
 ```
 
 # Solo Variable Models (Unadjusted Models)
 
-## Cause-Specific
+## Cause-Specific (Unadjusted)
 
 ```{r}
 # Cox Model 1 : Death / Deterioration
@@ -174,7 +171,7 @@ cs_model_transplant <- coxph(
 summary(cs_model_transplant)
 ```
 
-## Sub-Distribution Models
+## Sub-Distribution Models (Unadjusted)
 
 ```{r}
 
@@ -187,8 +184,6 @@ crr_death <- crr(
   ) ; summary(crr_death)
 
 # summary(crr_death)$coef[2]
-
-
 # round(1-summary(crr_death)$coef[2], 2)
 
 ```
@@ -218,3 +213,64 @@ crr_transplant <- crr(
 Escalated patients have a 13% higher subdistribution hazard of transplant. 
 
 Patients who escalated to status 2, are a bit more likely to have transplantation as an outcome.
+
+#  Adjusted Models
+
+## Cause-Specific (Adjusted)
+
+```{r}
+# Cox Model 1 : Death / Deterioration
+cs_model_death_adjusted <- 
+  heart_data %>% 
+  coxph(
+  Surv(TIME_30, EVENT_30 == 1) ~ 
+    ESCALATED + GENDER + ETHCAT + EXCEPTION + INIT_AGE + DIAB + INIT_BMI_NEW + BTYPE_REC,
+  data = .
+)
+summary(cs_model_death_adjusted)
+```
+
+```{r}
+
+# Cox Model 2 : Transplantation
+cs_model_transplant_adjusted <- coxph(
+  Surv(TIME_30, EVENT_30 == 2) ~ 
+    ESCALATED + GENDER + ETHCAT + EXCEPTION + INIT_AGE + DIAB + INIT_BMI_NEW + BTYPE_REC,
+  data = heart_data
+)
+summary(cs_model_transplant_adjusted)
+```
+
+## Sub-Distribution Models (Adjusted)
+
+```{r}
+# Fine-Gray subdistribution Model 1: Death / Deterioration
+crr_death_adjusted <- crr(
+  ftime   = heart_matrix$TIME_30,
+  fstatus = heart_matrix$EVENT_30,
+  cov1    = covariance_matrix,
+  failcode = 1
+  ) ; summary(crr_death_adjusted)
+```
+
+**Barebones Interpretation, needs work**
+
+
+
+
+
+```{r}
+# Fine-Gray subdistribution Model 2: Transplant
+crr_transplant_adjusted <- crr(
+  ftime   = heart_matrix$TIME_30,
+  fstatus = heart_matrix$EVENT_30,
+  cov1    = covariance_matrix,
+  failcode = 2
+  ) ; summary(crr_transplant_adjusted) 
+
+summary(crr_transplant_adjusted)$coef
+```
+
+**Barebones Interpretation, needs work**
+
+
