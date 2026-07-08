@@ -1,0 +1,112 @@
+---
+title: "Side Analysis"
+author: "Julia Aptekar"
+format: html
+embed-resources: true
+---
+
+## Goal
+The goal of this side analysis is to study waitlist candidates from the time they reach status 2 until one of several possible outcomes occurs.
+
+The landmark time, defined as time 0, is the first date on which a candidate is listed at status 2. For candidates initially listed at status 2, time 0 is their INIT_DATE. For candidates who reach status 2 later, time 0 is the first CHG_DATE on which their waitlist status becomes status 2.
+
+After time 0, candidates are followed until one of the following outcomes occurs:
+1. Death/deterioration
+2. Heart transplantation
+3. Recovery
+4. Upgrade to Status 1
+5. Downgrade to Status 3–6
+6. Delisting as Status 2999
+7. Still on study or removed for another reason, treated as censoring
+
+## Idea
+First, we identify the first date on which each candidate is listed at status 2. Candidates who are initially listed at status 2 have time 0 equal to their INIT_DATE. Candidates who are not initially listed at status 2 are included only if they later reach status 2; for these candidates, time 0 is the first CHG_DATE where their waitlist status becomes status 2.
+
+Candidates who never reach status 2 are removed from the analysis. After time 0, we examine each candidate’s subsequent waitlist history and identify the first event that occurs among death/deterioration, heart transplantation, recovery, upgrade to status 1, downgrade to status 3–6, delisting as status 2999, or censoring.
+
+The analysis time is calculated as the number of days from time 0 to the event or censoring date.
+
+## Libraries/Loading
+```{r}
+library(dplyr)
+library(lubridate)
+
+heart <- read.csv("data/LAsBEST26_SUBSET.csv")
+data <- readRDS("data/NEW_DATA.rds")
+```
+
+## Cleaning
+```{r}
+data <- data %>% 
+  select(WL_ID_CODE, INIT_STAT, END_STAT, INIT_DATE, END_DATE, CHG_DATE) %>%
+  rename(INITIAL_STATUS = INIT_STAT,
+    CHG_STATUS = END_STAT) %>%
+  mutate(INIT_DATE = ymd(INIT_DATE),
+    END_DATE = ymd(END_DATE),
+    CHG_DATE = ymd(CHG_DATE),
+    INITIAL_STATUS = case_when(
+      INITIAL_STATUS == 2110 ~ 1,
+      INITIAL_STATUS == 2120 ~ 2,
+      INITIAL_STATUS == 2130 ~ 3,
+      INITIAL_STATUS == 2140 ~ 4,
+      INITIAL_STATUS == 2150 ~ 5,
+      INITIAL_STATUS == 2160 ~ 6,
+      TRUE ~ NA_real_),
+    CHG_STATUS = case_when(
+      CHG_STATUS == 2110 ~ 1,
+      CHG_STATUS == 2120 ~ 2,
+      CHG_STATUS == 2130 ~ 3,
+      CHG_STATUS == 2140 ~ 4,
+      CHG_STATUS == 2150 ~ 5,
+      CHG_STATUS == 2160 ~ 6,
+      CHG_STATUS == 2999 ~ 2999,
+      TRUE ~ NA_real_))
+
+length(unique(data$WL_ID_CODE)) # ~20k patients total in this large frame
+```
+
+## Code
+```{r}
+groups <- data %>%
+  arrange(WL_ID_CODE, CHG_DATE) %>%
+  group_by(WL_ID_CODE) %>%
+  summarise(first_status = first(INITIAL_STATUS),
+    init_date = first(INIT_DATE),
+    status2_chg_date = {
+      dates <- CHG_DATE[CHG_STATUS == 2 & !is.na(CHG_DATE)]
+      if (length(dates) == 0) {
+        as.Date(NA)
+      } else {
+        min(dates)
+      }
+    },
+    .groups = "drop") %>%
+  mutate(had2 = first_status == 2 | !is.na(status2_chg_date),
+    first_status2_date = case_when(
+      first_status == 2 ~ init_date,
+      !is.na(status2_chg_date) ~ status2_chg_date,
+      TRUE ~ as.Date(NA)),
+    group = case_when(
+      first_status == 2 ~ 0,
+      first_status != 2 & had2 ~ 1,
+      TRUE ~ NA_real_),
+    time0 = first_status2_date) %>%
+  filter(!is.na(group))
+```
+
+## Joins
+```{r}
+# creating subset of heart to get missing variables recorded at initial listing
+heart_sub <- heart %>%
+  select(WL_ID_CODE, INIT_DATE, EXCEPTION, END_DATE_NEW, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW,
+         INIT_AGE, ETHCAT, DIAB, BTYPE_REC) %>%
+  distinct(WL_ID_CODE, .keep_all = TRUE)
+
+heart3 <- groups %>%
+  left_join(heart_sub, by = "WL_ID_CODE")
+```
+
+## Writing CSV
+```{r}
+write.csv(heart3, "data/heart3.csv")
+```
