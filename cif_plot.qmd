@@ -10,13 +10,66 @@ embed-resources: true
 
 ```{r}
 
-heart2<-read.csv("C:/Users/12063/Downloads/heart2 (2).csv")
+heart2<-read.csv("data/heart2.csv")
 
 # install.packages("survminer") 
 
 library(cmprsk)
 library(survminer)
 library(dplyr)
+library(lubridate)
+str(heart2)
+```
+
+```{r}
+heart2 <- heart2 %>% 
+  mutate(
+    DIAB = factor(
+      if_else(
+        DIAB == 1, 
+        "No", 
+        if_else(
+          DIAB %in% c(2, 3, 4, 5), 
+          "Yes", 
+          NA_character_)
+        ),
+      levels = c("No", "Yes")
+    ),
+    ETHCAT = factor(
+      case_when(
+        ETHCAT == 1 ~ "White",
+        ETHCAT == 2 ~ "Black",
+        ETHCAT == 4 ~ "Hispanic",
+        ETHCAT == 5 ~ "Asian",
+        ETHCAT %in% c(6, 7, 9, 998) ~ "Other"
+      ),
+      levels = c("White", "Black", "Hispanic", "Asian", "Other")
+    ),
+    across(
+      c(WL_ID_CODE, 
+        INITIAL_STATUS, 
+        STATUS_DAY7, 
+        EXCEPTION, 
+        REM_CD_NEW,
+        FSTATUS, 
+        GENDER, 
+        BTYPE_REC, 
+        ESCALATED), 
+      as.factor
+      ),
+    across(
+      c(FTIME, 
+        INIT_BMI_NEW, 
+        INIT_AGE), 
+      as.numeric
+      ),
+    across(
+      c(INIT_DATE, 
+        DAY7_DATE, 
+        LANDMARK_START, 
+        HORIZON_DATE), 
+      as_date)
+  )
 ```
 
 ```{r}
@@ -72,6 +125,7 @@ cif_fit <- cuminc(
   group   = heart_clean$ESCALATED
 )
 
+cif_fit
 cif_fit$Tests
 table(heart_clean$ESCALATED, heart2$EVENT_30)
 unique(heart_clean[,"ESCALATED"])
@@ -125,10 +179,10 @@ ggcompetingrisks(
     values = c("#E69F00", "#56B4E9"),
     labels = c("Death/Deterioration", "Transplanted")
   ) +
-  scale_linetype_manual(
-    values = c("dotted", "solid", "dotted", "solid"),
-    labels = c("Stable", "Escalated", "Stable", "Escalated")
-  ) +
+  # scale_linetype_manual(
+  #   values = c("dotted", "solid", "dotted", "solid"),
+  #   labels = c("Stable", "Escalated", "Stable", "Escalated")
+  # ) +
   labs(
     x        = "Days since landmark time",
     y        = "Cumulative incidence function",
@@ -144,7 +198,7 @@ ggcompetingrisks(
     panel.grid.minor = element_blank()
   )
 
-ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/cifplot.png", width = 8, height = 6, dpi = 300)
+# ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/cifplot.png", width = 8, height = 6, dpi = 300)
 ```
 
 ## Figures
@@ -181,7 +235,7 @@ heart2 %>%
     panel.grid.minor = element_blank()
   )
 
-ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/boxplot.png", width=8, height=6, dpi=300)
+# ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/boxplot.png", width=8, height=6, dpi=300)
 ```
 
 ```{r}
@@ -231,5 +285,5 @@ p_bmi <- heart2 %>%
 
 p_age + p_bmi
 
-ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/histograms.png", width=8, height=6, dpi=300)
+# ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/histograms.png", width=8, height=6, dpi=300)
 ```
