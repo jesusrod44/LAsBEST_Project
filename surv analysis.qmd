@@ -1,0 +1,290 @@
+---
+title: "survival analysis"
+author: "sydney shimizu"
+format: html
+editor: visual
+embed-resources: true
+---
+
+## Pre-Steps
+
+```{r}
+library(cmprsk)
+# install.packages("KMsurv")
+library(KMsurv)
+library(survival)
+library(tidyverse)
+
+
+heart2<-read.csv("C:/Users/12063/Downloads/heart2 (2).csv")
+
+heart2 <- heart2 %>%
+  mutate(
+    EVENT_TYPE = case_when(
+      # Death / deterioration
+      REM_CD_NEW %in% c(5,8,13) ~ 1,
+      
+      # Transplanted (deceased or living donor)
+      REM_CD_NEW %in% c(2,3,4,14,21,22) ~ 2, 
+      
+      # Censor everyone else
+      TRUE ~ 0
+    ),
+    
+# Creating TIME_FROM_LANDMARK, TIME_30, and EVENT_30 Variables
+
+TIME_FROM_LANDMARK = as.numeric(FTIME) - 7,
+    
+TIME_30 = pmin(TIME_FROM_LANDMARK, 30),
+
+ EVENT_30 = case_when(
+      TIME_FROM_LANDMARK <= 30 & EVENT_TYPE != 0 ~ EVENT_TYPE,
+      TRUE ~ 0
+    )
+)
+```
+
+```{r}
+
+# DIAB statuses/types
+heart2$DIAB <- ifelse(is.na(heart2$DIAB), 
+                           0, 
+                           heart2$DIAB) # making NA become 0s
+# heart2$DIAB2 <- factor(heart2$DIAB, 
+#                             levels = c(0, 1, 2, 3, 4, 5, 998),
+#                             labels = c("Not Reported", "No", "Type I", "Type II", "Type Other", "Type Unknown", "Status Unknown"), 
+#                             ordered=TRUE)
+
+heart2 <- heart2 %>%
+  mutate(
+    DIAB2 = case_when(
+      DIAB == 1 ~ "No",
+      DIAB %in% c(2, 3, 4, 5) ~ "Yes",
+      TRUE ~ NA_character_
+    ),
+    DIAB2 = factor(
+      DIAB2,
+      levels = c("No", "Yes")
+    )
+  )
+
+# Gender
+heart2$GENDER2 <- factor(heart2$GENDER, levels = c("F", "M"),
+                              labels = c("Female", "Male"),
+                              ordered = TRUE)
+
+# # ETHCAT
+# heart2$ETHCAT2 <- factor(heart2$ETHCAT, 
+#                               levels = c(1, 2, 4, 5, 6, 7, 9, 998),
+#                               labels = c("White", "Black", "Hispanic", "Asian", "AI/AN", "Hawaiian/Pacific-Islander", "Multiracial", "Unknown"))
+heart2 <- heart2 %>%
+  mutate(
+    ETHCAT2 = case_when(
+      ETHCAT == 1 ~ "White",
+      ETHCAT == 2 ~ "Black",
+      ETHCAT == 4 ~ "Hispanic",
+      ETHCAT == 5 ~ "Asian",
+      ETHCAT %in% c(6, 7, 9, 998) ~ "Other",
+      TRUE ~ NA_character_
+    ),
+    ETHCAT2 = factor(
+      ETHCAT2,
+      levels = c("White", "Black", "Hispanic", "Asian", "Other")
+    )
+  )
+
+# EXCEPTION
+heart2$EXCEPTION2 <- factor(heart2$EXCEPTION, 
+                                 levels = c(0, 1),
+                                 labels = c("No Exception", "Exception"))
+# ESCALATED
+heart2$ESCALATED2 <- factor(heart2$ESCALATED, levels = c(0, 1),
+                           labels = c("Stable", "Escalated"))
+```
+
+## Cause-Specific
+
+```{r}
+
+# UNADJUSTED MODEL (DEATH)
+cox.model1<-coxph(Surv(TIME_30,EVENT_30==1)~ESCALATED2,data=heart2,x=T)
+
+summary(cox.model1)
+
+# Interpretation
+# HR: 0.63; Patients in the Escalated group have a 37% lower instantaneous rate of death within 30 days compared with Stable patients
+```
+
+```{r}
+
+# ADJUSTED MODEL (DEATH)
+
+cox.model2<-coxph(Surv(TIME_30,EVENT_30==1)~ESCALATED2+GENDER+INIT_BMI_NEW+INIT_AGE+ETHCAT2+DIAB2+BTYPE_REC+EXCEPTION,data=heart2)
+
+summary(cox.model2)
+
+#HR: 0.57; Patients in the Escalated group have a 43% lower instantaneous rate of death within 30 days compared with Stable patients after adjusting for confounders. (lower risk/lower hazard of dying in escalated vs stable)
+```
+
+```{r}
+
+# UNADJUSTED MODEL (TRANSPLANT)
+
+cox.model3<-coxph(Surv(TIME_30,EVENT_30==2)~ESCALATED,data=heart2)
+
+summary(cox.model3)
+
+#HR: 1.115; Patients in the Escalated group have a 11.5% higher instantaneous rate of transplantation within 30 days compared with Stable patients.
+```
+
+```{r}
+
+# ADJUSTED MODEL (TRANSPLANT)
+
+cox.model2<-coxph(Surv(TIME_30,EVENT_30==2)~ESCALATED2+GENDER+INIT_BMI_NEW+INIT_AGE+ETHCAT2+DIAB2+BTYPE_REC+EXCEPTION,data=heart2)
+
+summary(cox.model2)
+
+#HR: 1.124; Patients in the Escalated group have a 11.2% higher instantaneous rate of transplantation within 30 days compared with Stable patients after adjusting for confounders (escalated groups have higher rates of transplants and lower rates of transplant).
+```
+
+## Sub-Distribution Hazard Model
+
+```{r}
+
+library(cmprsk)
+
+heart2 <- heart2 %>% drop_na(INIT_BMI_NEW)
+
+
+X <- model.matrix(~ ESCALATED + GENDER + INIT_BMI_NEW + INIT_AGE + ETHCAT + DIAB2 + BTYPE_REC + EXCEPTION,
+                   data = heart2)[, -1] 
+
+table(heart2$FTIME,heart2$TIME_30)
+table(heart2$FSTATUS,heart2$EVENT_30)
+
+
+as.factor(heart2$TIME_30)
+as.factor(heart2$EVENT_30)
+
+# UNADJUSTED MODELS #
+
+# Modeling Death as Outcome
+
+crr_death <- crr(
+  ftime   = heart2$TIME_30,
+  fstatus = heart2$EVENT_30,
+  cov1    = X[,1],
+  failcode = 1
+  ) ; 
+summary(crr_death)
+
+# HR: 0.59 (shows risk of death and models cumulative incidence)
+
+# Modeling Transplant as Outcome
+
+crr_death <- crr(
+  ftime   = heart2$TIME_30,
+  fstatus = heart2$EVENT_30,
+  cov1    = X[,1],
+  failcode = 2
+  ) ; 
+summary(crr_death)
+
+# HR: 1.13
+
+# ADJUSTED MODELS #
+
+# Modeling Death as Outcome
+
+model1<-crr(heart2$TIME_30,
+            heart2$EVENT_30,
+            X,
+            failcode=1)
+
+summary(model1)
+
+# HR: 0.53
+
+# Modeling Transplant as Outcome
+
+model2<-crr(heart2$TIME_30,
+            heart2$EVENT_30,
+            X,
+            failcode=2)
+
+summary(model2)
+
+# HR: 1.14
+```
+
+## Binomial Regression
+
+```{r}
+
+library(mets)
+options(warn=1)
+
+heart2 <- heart2 %>% drop_na(INIT_BMI_NEW)
+
+
+#Logistic Regression with IPCW Binomial Regression (Unadjusted) (Death)
+
+heart2$CAUSE_DEATH <- ifelse(heart2$EVENT_30 == 1, 1, 0)
+
+out <- binreg(
+  Event(heart2$TIME_30, heart2$CAUSE_DEATH) ~ ESCALATED2,
+  data = heart2,
+  time = 30
+)
+
+summary(out)
+
+# Estimate: 0.67 w/ Stable as ref. Less death for escalated
+
+
+#Logistic Regression with IPCW Binomial Regression (Adjusted) (Death)
+
+out1 <- binreg(
+  Event(heart2$TIME_30, heart2$CAUSE_DEATH) ~ ESCALATED2+GENDER+INIT_BMI_NEW+INIT_AGE+ETHCAT2+DIAB2+BTYPE_REC+EXCEPTION,
+  data = heart2,
+  time = 30
+)
+
+summary(out1)
+
+# Estimate: 0.60 w/ Stable as ref. Less death for escalated after adjusting
+
+```
+
+```{r}
+
+
+# Logistic Regression with IPCQ Binomial Regression (Unadjusted) (Transplant)
+
+heart2$CAUSE_T <- ifelse(heart2$EVENT_30 == 2, 1, 0)
+
+
+out2 <- binreg(
+  Event(heart2$TIME_30, heart2$CAUSE_T) ~ ESCALATED2,
+  data = heart2,
+  time = 30
+)
+
+summary(out2)
+
+# Estimate: 1.18 w/ Stab le as ref. Transplant higher in escalated
+
+
+# Logistic Regression with IPCQ Binomial Regression (Adjusted) (Transplant)
+
+out3 <- binreg(
+  Event(heart2$TIME_30, heart2$CAUSE_T) ~ ESCALATED2+GENDER+INIT_BMI_NEW+INIT_AGE+ETHCAT2+DIAB2+BTYPE_REC+EXCEPTION,
+  data = heart2,
+  time = 30
+)
+
+summary(out3)
+
+# Estimate: 1.19 w/ Stable as ref. Transplant is higher in escalated after adjusting
+```
