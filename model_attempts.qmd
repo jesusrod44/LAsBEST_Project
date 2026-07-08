@@ -273,4 +273,126 @@ summary(crr_transplant_adjusted)$coef
 
 **Barebones Interpretation, needs work**
 
+# Presentable Models
+
+## Cox-Models
+
+```{r}
+summary(cs_model_transplant_adjusted)$coefficients[1, "Pr(>|z|)"]
+
+summary(crr_death_adjusted)
+```
+
+## Results Table
+
+Function to extrac the info we need from the cox models
+
+```{r}
+# Extract from coxph model
+extract_cox <- function(model, outcome) {
+  s <- summary(model)
+  data.frame(
+    Outcome  = outcome,
+    HR       = s$conf.int[1, "exp(coef)"],
+    Lower    = s$conf.int[1, "lower .95"],
+    Upper    = s$conf.int[1, "upper .95"],
+    P        = s$coefficients[1, "Pr(>|z|)"]
+  )
+}
+```
+
+Function to extract the info we need from the Fine-Gray models
+
+
+```{r}
+# Extract from crr model
+extract_crr <- function(model, outcome) {
+  s <- summary(model)
+  data.frame(
+    Outcome  = outcome,
+    HR       = s$conf.int[1, "exp(coef)"],
+    Lower    = s$conf.int[1, "2.5%"],
+    Upper    = s$conf.int[1, "97.5%"],
+    P        = s$coef[1, "p-value"]
+  )
+}
+```
+
+Making the dataframe for the kable
+
+```{r}
+results_adjusted <- bind_rows(
+  extract_cox(cs_model_death_adjusted,      "Death / Deterioration"),
+  extract_cox(cs_model_transplant_adjusted, "Transplant"),
+  extract_crr(crr_death_adjusted,           "Death / Deterioration"),
+  extract_crr(crr_transplant_adjusted,      "Transplant")
+) |>
+  mutate(
+    HR = round(HR, 2),
+    CI = paste0("(", round(Lower, 2), " , ", round(Upper, 2), ")"),
+    P  = ifelse(P < 0.001, "<0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, HR, CI, P)
+```
+
+The Kable Table
+
+```{r}
+results_adjusted |>
+  kable(
+    col.names = c("Outcome", "Hazard Ratio*", "95% CI", "p-value"),
+    align = "c",
+    caption   = '<span style="font-size:22pt; font-weight:bold;">Association of Escalation Status with 30-Day Outcomes, Adjusted (Escalated vs. Stable)</span>'
+  ) |>
+  kable_styling(
+    full_width = F,
+    position = 'left',
+    font_size = 18 # we can mess with this to change the title size
+  ) |> 
+  column_spec(1, width = '10em') |> 
+  column_spec(2:4, width = "7em") |> 
+  pack_rows("Cause-Specific Cox Model", 1, 2) |>
+  pack_rows("Fine-Gray Subdistribution Model", 3, 4) |> 
+  footnote(
+    general = c("*Adjusted for gender, age, BMI, ethnicity, diabetes, blood type, and exception status.",
+                "Reference group: Stable patients*")
+  )
+
+```
+
+*\*Adjusted for gender, age, BMI, ethnicity, diabetes, blood type, and exception status. Reference group: Stable patients.*
+
+
+
+
+```{r}
+library(stargazer)
+# install.packages("stargazer")
+```
+
+
+
+
+
+```{r}
+# kable(summary(cs_model_death_adjusted))
+```
+
+# `modelsummary` package
+
+```{r}
+library(modelsummary)
+```
+
+```{r}
+models_list <- 
+  list("Death Cox-Model" = cs_model_death_adjusted, 
+       "Transplant Cox-Model" = cs_model_transplant_adjusted,
+       "Death Fine-Gray Model" = crr_death_adjusted,
+       "Transplant Fine-Gray Model" = crr_transplant_adjusted)
+```
+
+```{r}
+modelsummary(models_list, stars = T)
+```
 
