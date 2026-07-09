@@ -517,12 +517,13 @@ results_adjusted |>
   kable(
     col.names = c("Outcome", "Estimate*", "95% CI", "p-value"),
     align = "c",
+                  # we can mess with this to change the title font and size
     caption   = '<span style="font-size:22pt; font-weight:bold;">Association of Escalation Status with 30-Day Outcomes, Adjusted (Escalated vs. Stable)</span>'
   ) |>
   kable_styling(
     full_width = F,
     position = 'left',
-    font_size = 18 # we can mess with this to change the title size
+    font_size = 18
   ) |> 
   column_spec(1, width = '10em') |> 
   column_spec(2:4, width = "7em") |> 
@@ -532,3 +533,5 @@ results_adjusted |>
 ```
 
 *\*Adjusted for gender, age, BMI, ethnicity, diabetes, blood type, and exception status. Reference group: Stable patients.*
+
+
