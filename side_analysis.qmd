@@ -17,8 +17,8 @@ After time 0, candidates are followed until one of the following outcomes occurs
 3. Recovery
 4. Upgrade to Status 1
 5. Downgrade to Status 3–6
-6. Delisting as Status 2999
-7. Still on study or removed for another reason, treated as censoring
+6. Still on study or removed for another reason, treated as censoring
+7. Delisting as Status 2999
 
 ## Idea
 First, we identify the first date on which each candidate is listed at status 2. Candidates who are initially listed at status 2 have time 0 equal to their INIT_DATE. Candidates who are not initially listed at status 2 are included only if they later reach status 2; for these candidates, time 0 is the first CHG_DATE where their waitlist status becomes status 2.
@@ -96,16 +96,20 @@ groups <- data %>%
 
 ## Joins
 ```{r}
-# status-change events after time0
-status_events <- data %>%
+# This currently codes only status change events:
+# 4 = upgrade to status 1
+# 5 = downgrade to status 3-6
+# 7 = delisted as status 2999
+# Events 1, 2, 3, and 6 still need to be added using removal/outcome variables.
+
+status_change_events <- data %>%
   left_join(groups %>% select(WL_ID_CODE, time0), by = "WL_ID_CODE") %>%
   filter(!is.na(time0)) %>%
   filter(CHG_DATE > time0) %>%
-  mutate(
-    event = case_when(
-      INITIAL_STATUS == 2 & CHG_STATUS == 1 ~ 4, # upgrade from status 2 to status 1
-      INITIAL_STATUS == 2 & CHG_STATUS %in% 3:6 ~ 5, # downgrade from status 2 to status 3-6
-      INITIAL_STATUS == 2 & CHG_STATUS == 2999 ~ 7, # delisted from status 2 to status 2999
+  mutate(event = case_when(
+      INITIAL_STATUS == 2 & CHG_STATUS == 1 ~ 4,      # upgrade from status 2 to status 1
+      INITIAL_STATUS == 2 & CHG_STATUS %in% 3:6 ~ 5,  # downgrade from status 2 to status 3-6
+      INITIAL_STATUS == 2 & CHG_STATUS == 2999 ~ 7,   # delisted from status 2 to status 2999
       TRUE ~ NA_real_)) %>%
   filter(!is.na(event)) %>%
   group_by(WL_ID_CODE) %>%
@@ -115,13 +119,13 @@ status_events <- data %>%
     event_date = CHG_DATE,
     event = event)
 
-# joining baseline variables from original heart dataset
+# joining some variables from original heart dataset
 heart_sub <- heart %>%
   select(WL_ID_CODE, INIT_DATE, EXCEPTION, END_DATE_NEW, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW, INIT_AGE, ETHCAT, DIAB, BTYPE_REC) %>%
   distinct(WL_ID_CODE, .keep_all = TRUE)
 
 heart3 <- groups %>%
-  left_join(status_events, by = "WL_ID_CODE") %>%
+  left_join(status_change_events, by = "WL_ID_CODE") %>%
   left_join(heart_sub, by = "WL_ID_CODE") %>%
   mutate(time_to_event = as.numeric(event_date - time0))
 ```
