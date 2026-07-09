@@ -39,7 +39,7 @@ data <- readRDS("data/NEW_DATA.rds")
 ## Cleaning
 ```{r}
 data <- data %>% 
-  select(WL_ID_CODE, INIT_STAT, END_STAT, INIT_DATE, END_DATE, CHG_DATE, everything()) %>%
+  select(WL_ID_CODE, INIT_STAT, END_STAT, INIT_DATE, END_DATE, CHG_DATE) %>%
   rename(INITIAL_STATUS = INIT_STAT,
     CHG_STATUS = END_STAT) %>%
   mutate(INIT_DATE = ymd(INIT_DATE),
@@ -70,47 +70,43 @@ groups <- data %>%
   arrange(WL_ID_CODE, CHG_DATE) %>%
   group_by(WL_ID_CODE) %>%
   summarise(
-    first_status = first(INITIAL_STATUS),
-    init_date = first(INIT_DATE),
-    later_status2_date = {
-      dates <- CHG_DATE[CHG_STATUS == 2 & !is.na(CHG_DATE)]
-      if (length(dates) == 0) {
-        as.Date(NA)
+    first_status = first(na.omit(INITIAL_STATUS)),
+    init_date = first(na.omit(INIT_DATE)),
+    time0 = {
+      if (!is.na(first_status) && first_status == 2) {
+        init_date
       } else {
-        min(dates)
+        dates <- CHG_DATE[CHG_STATUS == 2 & !is.na(CHG_DATE)]
+        if (length(dates) == 0) {
+          as.Date(NA)
+        } else {
+          min(dates)
+        }
       }
     },
     .groups = "drop") %>%
-  mutate(status2_chg_date = case_when(
-      first_status == 2 ~ init_date,
-      first_status != 2 & !is.na(later_status2_date) ~ later_status2_date,
-      TRUE ~ as.Date(NA)),
-    had2 = !is.na(status2_chg_date),
-    group = case_when(
-      first_status == 2 ~ 0,
-      first_status != 2 & had2 ~ 1,
-      TRUE ~ NA_real_),
-    time0 = status2_chg_date) %>%
-  filter(!is.na(group))
+  filter(!is.na(time0)) %>%
+  mutate(group = case_when(
+    first_status == 2 ~ 0,
+    TRUE ~ 1))
 ```
 
 ## Joins
 ```{r}
-# This currently codes only status change events:
+# This codes status-change events:
 # 4 = upgrade to status 1
 # 5 = downgrade to status 3-6
 # 7 = delisted as status 2999
-# Events 1, 2, 3, and 6 still need to be added using removal/outcome variables.
 
 status_change_events <- data %>%
   left_join(groups %>% select(WL_ID_CODE, time0), by = "WL_ID_CODE") %>%
   filter(!is.na(time0)) %>%
   filter(CHG_DATE > time0) %>%
   mutate(event = case_when(
-      INITIAL_STATUS == 2 & CHG_STATUS == 1 ~ 4,      # upgrade from status 2 to status 1
-      INITIAL_STATUS == 2 & CHG_STATUS %in% 3:6 ~ 5,  # downgrade from status 2 to status 3-6
-      INITIAL_STATUS == 2 & CHG_STATUS == 2999 ~ 7,   # delisted from status 2 to status 2999
-      TRUE ~ NA_real_)) %>%
+    INITIAL_STATUS == 2 & CHG_STATUS == 1 ~ 4, # upgrade from status 2 to status 1
+    INITIAL_STATUS == 2 & CHG_STATUS %in% 3:6 ~ 5, # downgrade from status 2 to status 3-6
+    INITIAL_STATUS == 2 & CHG_STATUS == 2999 ~ 7, # delisted from status 2 to status 2999
+    TRUE ~ NA_real_)) %>%
   filter(!is.na(event)) %>%
   group_by(WL_ID_CODE) %>%
   slice_min(CHG_DATE, with_ties = FALSE) %>%
@@ -124,8 +120,30 @@ heart_sub <- heart %>%
   select(WL_ID_CODE, INIT_DATE, EXCEPTION, END_DATE_NEW, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW, INIT_AGE, ETHCAT, DIAB, BTYPE_REC) %>%
   distinct(WL_ID_CODE, .keep_all = TRUE)
 
+# This codes terminal/removal events:
+# 1 = death/deterioration
+# 2 = heart transplantation
+# 6 = censoring/other reason
+terminal_events <- heart_sub %>%
+  left_join(groups %>% select(WL_ID_CODE, time0), by = "WL_ID_CODE") %>%
+  mutate(END_DATE_NEW = ymd(END_DATE_NEW),
+    event_date = END_DATE_NEW,
+    event = case_when(REM_CD_NEW %in% c(5, 8, 13) ~ 1, # death/deterioration
+      REM_CD_NEW %in% c(2, 3, 4, 14, 21, 22) ~ 2, # heart transplantation
+      TRUE ~ 6)) %>% # censoring/other reason
+  filter(!is.na(time0)) %>%
+  filter(!is.na(event_date)) %>%
+  filter(event_date > time0) %>%
+  select(WL_ID_CODE, event_date, event)
+
+# combine all event types and keep the first event after time0
+all_events <- bind_rows(status_change_events, terminal_events) %>%
+  group_by(WL_ID_CODE) %>%
+  slice_min(event_date, with_ties = FALSE) %>%
+  ungroup()
+
 heart3 <- groups %>%
-  left_join(status_change_events, by = "WL_ID_CODE") %>%
+  left_join(all_events, by = "WL_ID_CODE") %>%
   left_join(heart_sub, by = "WL_ID_CODE") %>%
   mutate(time_to_event = as.numeric(event_date - time0))
 ```
