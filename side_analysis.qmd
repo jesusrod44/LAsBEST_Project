@@ -11,6 +11,7 @@ The goal of this side analysis is to study waitlist candidates from the time the
 The landmark time, defined as time 0, is the first date on which a candidate is listed at status 2. For candidates initially listed at status 2, time 0 is their INIT_DATE. For candidates who reach status 2 later, time 0 is the first CHG_DATE on which their waitlist status becomes status 2.
 
 After time 0, candidates are followed until one of the following outcomes occurs:
+
 1. Death/deterioration
 2. Heart transplantation
 3. Recovery
@@ -38,7 +39,7 @@ data <- readRDS("data/NEW_DATA.rds")
 ## Cleaning
 ```{r}
 data <- data %>% 
-  select(WL_ID_CODE, INIT_STAT, END_STAT, INIT_DATE, END_DATE, CHG_DATE) %>%
+  select(WL_ID_CODE, INIT_STAT, END_STAT, INIT_DATE, END_DATE, CHG_DATE, everything()) %>%
   rename(INITIAL_STATUS = INIT_STAT,
     CHG_STATUS = END_STAT) %>%
   mutate(INIT_DATE = ymd(INIT_DATE),
@@ -61,8 +62,6 @@ data <- data %>%
       CHG_STATUS == 2160 ~ 6,
       CHG_STATUS == 2999 ~ 2999,
       TRUE ~ NA_real_))
-
-length(unique(data$WL_ID_CODE)) # ~20k patients total in this large frame
 ```
 
 ## Code
@@ -70,9 +69,10 @@ length(unique(data$WL_ID_CODE)) # ~20k patients total in this large frame
 groups <- data %>%
   arrange(WL_ID_CODE, CHG_DATE) %>%
   group_by(WL_ID_CODE) %>%
-  summarise(first_status = first(INITIAL_STATUS),
+  summarise(
+    first_status = first(INITIAL_STATUS),
     init_date = first(INIT_DATE),
-    status2_chg_date = {
+    later_status2_date = {
       dates <- CHG_DATE[CHG_STATUS == 2 & !is.na(CHG_DATE)]
       if (length(dates) == 0) {
         as.Date(NA)
@@ -81,32 +81,52 @@ groups <- data %>%
       }
     },
     .groups = "drop") %>%
-  mutate(had2 = first_status == 2 | !is.na(status2_chg_date),
-    first_status2_date = case_when(
+  mutate(status2_chg_date = case_when(
       first_status == 2 ~ init_date,
-      !is.na(status2_chg_date) ~ status2_chg_date,
+      first_status != 2 & !is.na(later_status2_date) ~ later_status2_date,
       TRUE ~ as.Date(NA)),
+    had2 = !is.na(status2_chg_date),
     group = case_when(
       first_status == 2 ~ 0,
       first_status != 2 & had2 ~ 1,
       TRUE ~ NA_real_),
-    time0 = first_status2_date) %>%
+    time0 = status2_chg_date) %>%
   filter(!is.na(group))
 ```
 
 ## Joins
 ```{r}
-# creating subset of heart to get missing variables recorded at initial listing
+# status-change events after time0
+status_events <- data %>%
+  left_join(groups %>% select(WL_ID_CODE, time0), by = "WL_ID_CODE") %>%
+  filter(!is.na(time0)) %>%
+  filter(CHG_DATE > time0) %>%
+  mutate(
+    event = case_when(
+      INITIAL_STATUS == 2 & CHG_STATUS == 1 ~ 4, # upgrade from status 2 to status 1
+      INITIAL_STATUS == 2 & CHG_STATUS %in% 3:6 ~ 5, # downgrade from status 2 to status 3-6
+      INITIAL_STATUS == 2 & CHG_STATUS == 2999 ~ 7, # delisted from status 2 to status 2999
+      TRUE ~ NA_real_)) %>%
+  filter(!is.na(event)) %>%
+  group_by(WL_ID_CODE) %>%
+  slice_min(CHG_DATE, with_ties = FALSE) %>%
+  ungroup() %>%
+  transmute(WL_ID_CODE,
+    event_date = CHG_DATE,
+    event = event)
+
+# joining baseline variables from original heart dataset
 heart_sub <- heart %>%
-  select(WL_ID_CODE, INIT_DATE, EXCEPTION, END_DATE_NEW, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW,
-         INIT_AGE, ETHCAT, DIAB, BTYPE_REC) %>%
+  select(WL_ID_CODE, INIT_DATE, EXCEPTION, END_DATE_NEW, REM_CD_NEW, FSTATUS, GENDER, INIT_BMI_NEW, INIT_AGE, ETHCAT, DIAB, BTYPE_REC) %>%
   distinct(WL_ID_CODE, .keep_all = TRUE)
 
 heart3 <- groups %>%
-  left_join(heart_sub, by = "WL_ID_CODE")
+  left_join(status_events, by = "WL_ID_CODE") %>%
+  left_join(heart_sub, by = "WL_ID_CODE") %>%
+  mutate(time_to_event = as.numeric(event_date - time0))
 ```
 
 ## Writing CSV
 ```{r}
-write.csv(heart3, "data/heart3.csv")
+write.csv(heart3, "data/heart3.csv", row.names=FALSE)
 ```
