@@ -513,23 +513,26 @@ results_adjusted <- bind_rows(
 The New Kable Table
 
 ```{r}
-results_adjusted |>
+kable_table <- 
+  results_adjusted |>
   kable(
-    col.names = c("Outcome", "Estimate*", "95% CI", "p-value"),
-    align = "c",
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
                   # we can mess with this to change the title font and size
-    caption   = '<span style="font-size:22pt; font-weight:bold;">Association of Escalation Status with 30-Day Outcomes, Adjusted (Escalated vs. Stable)</span>'
+    caption   = '<center><span style="font-size:18pt; font-weight:bold;">Table 2. Association of Escalation Status with 30 Day Outcomes</span></center>'
   ) |>
   kable_styling(
-    full_width = F,
-    position = 'left',
-    font_size = 18
+    full_width = T,
+    # position = 'left',
+    font_size = 19
   ) |> 
-  column_spec(1, width = '10em') |> 
-  column_spec(2:4, width = "7em") |> 
-  pack_rows("Cause-Specific Cox Model", 1, 2) |>
-  pack_rows("Fine-Gray Subdistribution Model", 3, 4) |>
-  pack_rows("Binomial Regression Model", 5, 6) 
+  column_spec(1, width = '10em', bold = T, color = "black") |> 
+  column_spec(2:4, width = "7em", bold = T, color = "black") |> 
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 2) |>
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 3, 4) |>
+  pack_rows("Direct Binomial Regression Model (OR*)", 5, 6) 
+
+save_kable(kable_table, file = "results_table.png")
 ```
 
 *\*Adjusted for gender, age, BMI, ethnicity, diabetes, blood type, and exception status. Reference group: Stable patients.*

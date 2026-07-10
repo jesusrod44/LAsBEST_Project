@@ -184,9 +184,9 @@ ggcompetingrisks(
   #   labels = c("Stable", "Escalated", "Stable", "Escalated")
   # ) +
   labs(
-    x        = "Days since landmark time",
-    y        = "Cumulative incidence function",
-    color    = "Event",
+    x        = "Days Since Landmark Time",
+    y        = "Cumulative Incidence Function",
+    color    = "Outcome",
     linetype = "Group"
   ) +
   theme_bw() +
@@ -198,6 +198,7 @@ ggcompetingrisks(
     panel.grid.minor = element_blank()
   )
 
+ggsave("cifplot.png",  width = 8, height = 6, dpi = 300)
 # ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/cifplot.png", width = 8, height = 6, dpi = 300)
 ```
 
