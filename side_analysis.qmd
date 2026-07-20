@@ -147,30 +147,18 @@ write.csv(heart3, "data/heart3.csv", row.names=FALSE)
 
 `event` identifies the type of first event after `time0`:
 
-1. Death/deterioration
-2. Heart transplantation
-3. Recovery
-4. Upgrade to status 1
-5. Downgrade to status 3–6
-6. Still on study or removed for another reason, treated as censoring
-7. Delisting as status 2999
+1: Death/deterioration
+2: Heart transplantation
+3: Recovery
+4: Upgrade to status 1
+5: Downgrade to status 3–6
+6: Censoring
+7: Delisting as status 2999
 
 `time_to_event` is the number of days from `time0` to `event_date`.
 
 `n_days_to_status2` is the number of days from initial listing to `time0`.
 
-`age_at_status2` is the candidate’s estimated age when they first reached status 2. For candidates who started at status 2, this is the same as their initial age. For candidates who reached status 2 later, this is their initial age plus the time between initial listing and status 2, converted from days to years.
-
-## Notes
-- randomly sample some IDs from original datasets
-- check censorship
-- remove people with negative diffs in dates (chg date - time0)
-- save all variables
-- need 9870 obs
-- next steps: create new age variable
-  - we only have initial age at listing
-  - want age at status2
-  those who start at 2: age = init_age
-  those who get into 2: age = init_age + n_day_at2
-
-  - analysis: CIF plot (1 with all events, 1 focused on transplant vs death, 1 on downgrade vs upgrade), status2 at list vs. changed into status2, unadjusted Cox + FG models
+`age_at_status2` is the candidate’s estimated age when they first reached status 2.
+- For candidates who started at status 2, this is the same as their initial age. 
+- For candidates who reached status 2 later, this is their initial age plus the time between initial listing and status 2, converted from days to years.
