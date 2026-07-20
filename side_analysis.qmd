@@ -5,26 +5,6 @@ format: html
 embed-resources: true
 ---
 
-## Goal
-The goal of this side analysis is to study waitlist candidates from the time they reach status 2 until one of several possible outcomes occurs.
-
-The landmark time, defined as time0, is the first date on which a candidate is listed at status 2. For candidates initially listed at status 2, time 0 is their INIT_DATE. For candidates who reach status 2 later, time0 is the first CHG_DATE on which their waitlist status becomes status 2.
-
-After time 0, candidates are followed until one of the following outcomes occurs:
-
-1. Death/deterioration
-2. Heart transplantation
-3. Recovery
-4. Upgrade to Status 1
-5. Downgrade to Status 3–6
-6. Still on study or removed for another reason, treated as censoring
-7. Delisting as Status 2999
-
-## Idea
-First, we identify the first date on which each candidate is listed at status 2. Candidates who are initially listed at status 2 have time 0 equal to their INIT_DATE. Candidates who are not initially listed at status 2 are included only if they later reach status 2; for these candidates, time0 is the first CHG_DATE where their waitlist status becomes status 2.
-
-Candidates who never reach status 2 are removed from the analysis. After time0, we examine each candidate’s waitlist history and identify the first event that occurs among death/deterioration, heart transplantation, recovery, upgrade to status 1, downgrade to status 3–6, delisting as status 2999, or censoring.
-
 ## Libraries/Loading
 ```{r}
 library(dplyr)
@@ -37,9 +17,8 @@ d <- readRDS("data/NEW_DATA.rds")
 ```{r}
 data <- d %>% 
   select(WL_ID_CODE, WLREG_AUDIT_ID_CODE, INIT_STAT, INIT_DATE, CHG_DATE,
-         UNOS_CAND_STAT_CD, END_DATE_NEW, FTIME, FSTATUS, REM_CD_NEW, DAYSWAIT_CHRON) %>%
-  relocate(WL_ID_CODE, WLREG_AUDIT_ID_CODE, INIT_STAT, INIT_DATE, CHG_DATE,
-           UNOS_CAND_STAT_CD, END_DATE_NEW, FSTATUS, FTIME, REM_CD_NEW) %>%
+         UNOS_CAND_STAT_CD, END_DATE_NEW, FTIME, FSTATUS, REM_CD_NEW, 
+         DAYSWAIT_CHRON, INIT_AGE) %>%
   mutate(INIT_DATE = ymd(INIT_DATE),
     END_DATE_NEW = ymd(END_DATE_NEW),
     CHG_DATE = ymd(CHG_DATE),
@@ -73,6 +52,7 @@ data <- data %>%
 dat1 <- data %>%
   filter(ANYSTAT2 == 1)
 
+# keeping rows starting at first status 2
 dat2 <- dat1 %>%
   arrange(WL_ID_CODE, CHG_DATE, WLREG_AUDIT_ID_CODE) %>%
   group_by(WL_ID_CODE) %>%
@@ -90,15 +70,15 @@ groups <- dat2 %>%
     time0 = first(STAT2_INIT),
     .groups = "drop") %>%
   mutate(group = case_when(
-    first_status == 2 ~ 0,
-    TRUE ~ 1))
+      first_status == 2 ~ 0,
+      TRUE ~ 1),
+    n_days_to_status2 = as.numeric(time0 - init_date))
 ```
 
 ## Joins
 ```{r}
-# event_date is the minimum of CHG_DATE and END_DATE_NEW
-# event type comes from REM_CD_NEW if END_DATE_NEW is the minimum
-# event type comes from STATUS if CHG_DATE is the minimum
+# event_date is the earlier of CHG_DATE and END_DATE_NEW
+# event_source tells whether the event came from removal or status change
 
 event_rows <- dat2 %>%
   mutate(event_date = case_when(
@@ -114,26 +94,47 @@ event_rows <- dat2 %>%
   slice_min(event_date, with_ties = FALSE) %>%
   ungroup()
 
+# coding the first event after time0
 heart_events <- event_rows %>%
   mutate(event = case_when(
-      event_source == "removal" & REM_CD_NEW %in% c(5, 8, 13) ~ 1, # death/deterioration
-      event_source == "removal" & REM_CD_NEW %in% c(2, 3, 4, 14, 21, 22) ~ 2, # heart transplantation
-      event_source == "removal" & REM_CD_NEW == 12 ~ 3, # recovery
-      event_source == "status_change" & STATUS == 1 ~ 4, # upgrade to status 1
-      event_source == "status_change" & STATUS %in% 3:6 ~ 5, # downgrade to status 3-6
-      event_source == "status_change" & STATUS == 2999 ~ 7, # delisted as status 2999
-      TRUE ~ 6)) %>% # censoring/other reason
+      event_source == "removal" & REM_CD_NEW %in% c(5, 8, 13) ~ 1,
+      event_source == "removal" & REM_CD_NEW %in% c(2, 3, 4, 14, 21, 22) ~ 2,
+      event_source == "removal" & REM_CD_NEW == 12 ~ 3,
+      event_source == "status_change" & STATUS == 1 ~ 4,
+      event_source == "status_change" & STATUS %in% 3:6 ~ 5,
+      event_source == "status_change" & STATUS == 2999 ~ 7,
+      TRUE ~ 6)) %>%
   select(WL_ID_CODE, event_date, event_source, event)
 
-# joining some variables from original dataset
+# saving all original variables
 sub <- d %>%
-  select(WL_ID_CODE, EXCEPTION, GENDER, INIT_BMI_CALC, INIT_AGE, ETHNICITY, DIAB, ABO) %>%
   distinct(WL_ID_CODE, .keep_all = TRUE)
 
 heart3 <- groups %>%
   left_join(heart_events, by = "WL_ID_CODE") %>%
   left_join(sub, by = "WL_ID_CODE") %>%
-  mutate(time_to_event = as.numeric(event_date - time0))
+  mutate(time_to_event = as.numeric(event_date - time0),
+    age_at_status2 = INIT_AGE + n_days_to_status2 / 365.25) %>%
+  filter(is.na(time_to_event) | time_to_event >= 0)
+```
+
+## Checking counts
+```{r}
+# checking final sample size and date logic
+heart3 %>%
+  summarise(n_rows = n(),
+    n_unique_ids = n_distinct(WL_ID_CODE),
+    missing_time0 = sum(is.na(time0)),
+    negative_time_to_event = sum(time_to_event < 0, na.rm = TRUE))
+
+# checking event counts
+heart3 %>%
+  count(event, event_source, sort = TRUE)
+
+# checking censoring codes
+heart3 %>%
+  filter(event == 6) %>%
+  count(event_source, REM_CD_NEW, sort = TRUE)
 ```
 
 ## Writing CSV
@@ -142,29 +143,30 @@ write.csv(heart3, "data/heart3.csv", row.names=FALSE)
 ```
 
 ## Variable Definitions
-`time0` is the landmark date for each candidate. It represents the first date the candidate is listed at status 2. For candidates initially listed at status 2, `time0` is their `INIT_DATE`. For candidates who reach status 2 later, `time0` is the first `CHG_DATE` where their status becomes 2.
 
-`group` identifies how the candidate entered the status 2 cohort. 
-- Candidates with `group = 0` were initially listed at status 2. 
-- Candidates with `group = 1` were not initially listed at status 2 but reached status 2 later.
+`time0` is the date when the candidate first reaches status 2. If the candidate started at status 2, `time0` is their `INIT_DATE`. If the candidate reached status 2 later, `time0` is their first `CHG_DATE` with status 2.
 
-`event_date` is the date of the first observed event after `time0`.
+`group` shows how the candidate entered the status 2 group. Candidates with `group = 0` started at status 2. Candidates with `group = 1` reached status 2 later.
 
-`event_source` identifies which part of the data was used to determine the first event. If `event_source = "removal"`, the event was based on `END_DATE_NEW` and `REM_CD_NEW`. If `event_source = "status_change"`, the event was based on `CHG_DATE` and `STATUS`.
+`event_date` is the date of the first event after `time0`.
 
-`event` identifies the type of first event after `time0`. The event codes are:
+`event_source` shows where the event came from. If `event_source = "removal"`, the event was based on `END_DATE_NEW` and `REM_CD_NEW`. If `event_source = "status_change"`, the event was based on `CHG_DATE` and `STATUS`.
 
-1: Death/deterioration
-2: Heart transplantation
-3: Recovery
-4: Upgrade to status 1
-5: Downgrade to status 3–6
-6: Still on study or removed for another reason, treated as censoring
-7: Delisting as status 2999
+`event` identifies the type of first event after `time0`:
+
+1. Death/deterioration
+2. Heart transplantation
+3. Recovery
+4. Upgrade to status 1
+5. Downgrade to status 3–6
+6. Still on study or removed for another reason, treated as censoring
+7. Delisting as status 2999
 
 `time_to_event` is the number of days from `time0` to `event_date`.
 
-Note: Events based on removal outcomes are coded using `REM_CD_NEW`.
+`n_days_to_status2` is the number of days from initial listing to `time0`.
+
+`age_at_status2` is the candidate’s estimated age when they first reached status 2. For candidates who started at status 2, this is the same as their initial age. For candidates who reached status 2 later, this is their initial age plus the time between initial listing and status 2, converted from days to years.
 
 ## Notes
 - randomly sample some IDs from original datasets
@@ -177,5 +179,5 @@ Note: Events based on removal outcomes are coded using `REM_CD_NEW`.
   - want age at status2
   those who start at 2: age = init_age
   those who get into 2: age = init_age + n_day_at2
-  - come up with idea on how to calculate that for those status 2 after waitlist
-  - analysis: CIF plot (1 with all events, 1 focused on transplant vs death, 1 on downgrade vs upgrade), status2 at list vs. changed into status2, unadjusted Cox + FG models,
+
+  - analysis: CIF plot (1 with all events, 1 focused on transplant vs death, 1 on downgrade vs upgrade), status2 at list vs. changed into status2, unadjusted Cox + FG models
