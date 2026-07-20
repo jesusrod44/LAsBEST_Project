@@ -43,31 +43,24 @@ data <- d %>%
 
 ## Code
 ```{r}
-data <- data %>%
+data1 <- data %>%
   group_by(WL_ID_CODE) %>%
-  mutate(ANYSTAT2 = as.integer(any(STATUS == 2, na.rm = TRUE)),
-    ANYSTAT1 = as.integer(any(STATUS == 1, na.rm = TRUE))) %>%
+  filter(any(STATUS == 2, na.rm = TRUE)) %>%
   ungroup()
 
-dat1 <- data %>%
-  filter(ANYSTAT2 == 1)
-
 # keeping rows starting at first status 2
-dat2 <- dat1 %>%
+data2 <- data1 %>%
   arrange(WL_ID_CODE, CHG_DATE, WLREG_AUDIT_ID_CODE) %>%
   group_by(WL_ID_CODE) %>%
-  mutate(FIRST_STAT2 = match(TRUE, STATUS == 2)) %>%
-  filter(!is.na(FIRST_STAT2),
-    row_number() >= FIRST_STAT2) %>%
-  mutate(STAT2_INIT = first(CHG_DATE)) %>%
-  ungroup() %>%
-  select(-FIRST_STAT2)
+  mutate(STAT2_INIT = min(CHG_DATE[STATUS == 2], na.rm = TRUE)) %>%
+  filter(CHG_DATE >= STAT2_INIT) %>%
+  ungroup()
 
-groups <- dat2 %>%
+groups <- data2 %>%
   group_by(WL_ID_CODE) %>%
   summarise(first_status = first(INITIAL_STATUS),
     init_date = first(INIT_DATE),
-    time0 = first(STAT2_INIT),
+    time0 = first(CHG_DATE),
     .groups = "drop") %>%
   mutate(group = case_when(
       first_status == 2 ~ 0,
@@ -77,10 +70,8 @@ groups <- dat2 %>%
 
 ## Joins
 ```{r}
-# event_date is the earlier of CHG_DATE and END_DATE_NEW
-# event_source tells whether the event came from removal or status change
-
-event_rows <- dat2 %>%
+# choosing the first event after status 2
+event_rows <- data2 %>%
   mutate(event_date = case_when(
       is.na(END_DATE_NEW) ~ CHG_DATE,
       is.na(CHG_DATE) ~ END_DATE_NEW,
@@ -94,19 +85,19 @@ event_rows <- dat2 %>%
   slice_min(event_date, with_ties = FALSE) %>%
   ungroup()
 
-# coding the first event after time0
+# coding the event type
 heart_events <- event_rows %>%
   mutate(event = case_when(
-      event_source == "removal" & REM_CD_NEW %in% c(5, 8, 13) ~ 1,
-      event_source == "removal" & REM_CD_NEW %in% c(2, 3, 4, 14, 21, 22) ~ 2,
-      event_source == "removal" & REM_CD_NEW == 12 ~ 3,
-      event_source == "status_change" & STATUS == 1 ~ 4,
-      event_source == "status_change" & STATUS %in% 3:6 ~ 5,
-      event_source == "status_change" & STATUS == 2999 ~ 7,
-      TRUE ~ 6)) %>%
+      event_source == "removal" & REM_CD_NEW %in% c(5, 8, 13) ~ 1, # death
+      event_source == "removal" & REM_CD_NEW %in% c(2, 3, 4, 14, 21, 22) ~ 2, # transplant
+      event_source == "removal" & REM_CD_NEW == 12 ~ 3, # recovery
+      event_source == "status_change" & STATUS == 1 ~ 4, # downgrade
+      event_source == "status_change" & STATUS %in% 3:6 ~ 5, # upgrade
+      event_source == "status_change" & STATUS == 2999 ~ 7, # delisted
+      TRUE ~ 6)) %>% # censored
   select(WL_ID_CODE, event_date, event_source, event)
 
-# saving all original variables
+# merging back all original variables
 sub <- d %>%
   distinct(WL_ID_CODE, .keep_all = TRUE)
 
@@ -115,7 +106,10 @@ heart3 <- groups %>%
   left_join(sub, by = "WL_ID_CODE") %>%
   mutate(time_to_event = as.numeric(event_date - time0),
     age_at_status2 = INIT_AGE + n_days_to_status2 / 365.25) %>%
-  filter(is.na(time_to_event) | time_to_event >= 0)
+  filter(is.na(time_to_event) | time_to_event >= 0) %>%
+  select(WL_ID_CODE, time0, event_date, event, event_source,
+    time_to_event, group, n_days_to_status2, age_at_status2,
+    first_status, init_date, INIT_AGE, everything())
 ```
 
 ## Checking counts
@@ -128,8 +122,7 @@ heart3 %>%
     negative_time_to_event = sum(time_to_event < 0, na.rm = TRUE))
 
 # checking event counts
-heart3 %>%
-  count(event, event_source, sort = TRUE)
+heart3 %>% count(event, event_source, sort = TRUE)
 
 # checking censoring codes
 heart3 %>%
