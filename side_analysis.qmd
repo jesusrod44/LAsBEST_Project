@@ -165,3 +165,17 @@ write.csv(heart3, "data/heart3.csv", row.names=FALSE)
 `time_to_event` is the number of days from `time0` to `event_date`.
 
 Note: Events based on removal outcomes are coded using `REM_CD_NEW`.
+
+## Notes
+- randomly sample some IDs from original datasets
+- check censorship
+- remove people with negative diffs in dates (chg date - time0)
+- save all variables
+- need 9870 obs
+- next steps: create new age variable
+  - we only have initial age at listing
+  - want age at status2
+  those who start at 2: age = init_age
+  those who get into 2: age = init_age + n_day_at2
+  - come up with idea on how to calculate that for those status 2 after waitlist
+  - analysis: CIF plot (1 with all events, 1 focused on transplant vs death, 1 on downgrade vs upgrade), status2 at list vs. changed into status2, unadjusted Cox + FG models,
