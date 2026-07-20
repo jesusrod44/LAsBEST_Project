@@ -136,14 +136,17 @@ write.csv(heart3, "data/heart3.csv", row.names=FALSE)
 ```
 
 ## Variable Definitions
-
 `time0` is the date when the candidate first reaches status 2. If the candidate started at status 2, `time0` is their `INIT_DATE`. If the candidate reached status 2 later, `time0` is their first `CHG_DATE` with status 2.
 
-`group` shows how the candidate entered the status 2 group. Candidates with `group = 0` started at status 2. Candidates with `group = 1` reached status 2 later.
+`group` shows how the candidate entered the status 2 group. 
+- Candidates with `group = 0` started at status 2. 
+- Candidates with `group = 1` reached status 2 later.
 
 `event_date` is the date of the first event after `time0`.
 
-`event_source` shows where the event came from. If `event_source = "removal"`, the event was based on `END_DATE_NEW` and `REM_CD_NEW`. If `event_source = "status_change"`, the event was based on `CHG_DATE` and `STATUS`.
+`event_source` shows where the event came from. 
+- If `event_source = "removal"`, the event was based on `END_DATE_NEW` and `REM_CD_NEW`.
+- If `event_source = "status_change"`, the event was based on `CHG_DATE` and `STATUS`.
 
 `event` identifies the type of first event after `time0`:
 
