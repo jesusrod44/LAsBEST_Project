@@ -4,6 +4,8 @@ library(lubridate)
 
 # original data
 d <- readRDS("data/NEW_DATA.rds")
+d <- d |> 
+  relocate(WL_ID_CODE, END_DATE, END_DATE_NEW)
 
 # initial cleaning
 data <- d %>% 
@@ -103,6 +105,7 @@ heart_events <- event_rows %>%
 sub <- d %>%
   select(-END_DATE_NEW, -REM_CD_NEW) %>%
   distinct(WL_ID_CODE, .keep_all = TRUE) %>%
+  relocate(WL_ID_CODE) |> 
   left_join(data %>% distinct(WL_ID_CODE, END_DATE_NEW, REM_CD_NEW), by = "WL_ID_CODE")
 
 heart_extra <- groups %>% # this one includes the people with status 1 to 2
@@ -110,7 +113,10 @@ heart_extra <- groups %>% # this one includes the people with status 1 to 2
   left_join(sub, by = "WL_ID_CODE") %>%
   mutate(time_to_event = as.numeric(event_date - time0), # creating time till event variable
          age_at_status2 = INIT_AGE + n_days_to_status2 / 365.25) %>% # creating adjusted age variable
-  filter(is.na(time_to_event) | time_to_event >= 0) %>%
+  # filter(WL_ID_CODE == 1762390) |> 
+  # glimpse()
+  filter(is.na(time_to_event) | time_to_event >= 0) %>% # THIS IS WHAT IS CAUSING ID 1762390 TO BE REMOVED
+  # filter(WL_ID_CODE == 1762390)
   select(WL_ID_CODE, time0, event_date, event, event_source,
          time_to_event, group, n_days_to_status2, age_at_status2,
          status1_before_status2, first_status, init_date, INIT_AGE, everything())
@@ -118,3 +124,24 @@ heart_extra <- groups %>% # this one includes the people with status 1 to 2
 # final analytic dataset (excluding the status 1 to 2)
 heart3 <- heart_extra %>%
   filter(status1_before_status2 == 0)
+
+
+
+# reading stat1_before_2 codes --------------------------------------------
+
+stat1_before_2_check <- 
+  heart_extra |> 
+  filter(status1_before_status2 == 1) |> 
+  group_by(WL_ID_CODE) |> 
+  count(WL_ID_CODE)
+stat1_before_2 <- read_csv("data/stat1_before_2_wl_id_codes.csv")
+
+stat1_before_2 |>
+  anti_join(stat1_before_2_check, by = c("x" = "WL_ID_CODE"))
+
+stat1_before_2_check |>
+  anti_join(stat1_before_2, by = c("WL_ID_CODE" = "x"))
+
+groups |> 
+  filter(WL_ID_CODE == 1762390)
+
