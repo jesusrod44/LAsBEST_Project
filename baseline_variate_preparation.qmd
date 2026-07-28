@@ -1,0 +1,163 @@
+---
+title: "Model Side Analysis"
+author: "Julia Aptekar"
+format: html
+embed-resources: true
+---
+
+## Libraries/Loading
+```{r setup}
+library(tidyverse)
+library(lubridate)
+
+# d <- readRDS("data/NEW_DATA.rds")
+heart3 <- 
+  read_csv("data/heart3.csv")
+```
+# Baseline Variates
+
+```{r}
+baseline_variates <- 
+  heart3 |> 
+  select(WL_ID_CODE,
+         INIT_AGE, 
+         age_at_status2, 
+         GENDER_NEW,
+         INIT_BMI_NEW,
+         ETHCAT_NEW,
+         ETHCAT2_NEW,
+         BTYPE_REC,
+         DIAB,     # THERE ARE FOUR `Diabetes Status Unknown` obs in `DIAB`
+         DIAB_Y,   # DR. KAWAGUCHI seemed to set them as NOT HAVING DIABETES
+         VENTILATOR_TCR,
+         PRIOR_CARD_SURG_TCR,
+         PRIOR_CARD_SURG_TCR_Y,
+         ISCH_CARD_Y,
+         DIAL_AFTER_LIST,
+         DIAL_AFTER_LIST_Y,
+         
+         group, # stable / escalated variable
+         
+         time_to_event, # time and event variables
+         event,         #
+         event_source,  #
+         event_date     #
+  ) |> 
+  mutate(
+    across(
+      c(INIT_AGE,
+        age_at_status2,
+        INIT_BMI_NEW, 
+        time_to_event),
+      as.numeric
+    ),
+    across(
+      c(WL_ID_CODE,
+        GENDER_NEW,
+        ETHCAT_NEW,
+        ETHCAT2_NEW,
+        BTYPE_REC,
+        DIAB,
+        DIAB_Y,
+        VENTILATOR_TCR,
+        PRIOR_CARD_SURG_TCR,
+        PRIOR_CARD_SURG_TCR_Y,
+        ISCH_CARD_Y,
+        DIAL_AFTER_LIST,
+        DIAL_AFTER_LIST_Y,
+        event,
+        event_source),
+      as.factor
+    ),
+    group = factor(group,
+                   levels = c(0,1),
+                   labels = c("Stable", "Escalated"))
+  )
+         
+```
+
+# Covariate Matrix Preparation
+
+```{r}
+vars <- c(
+  "time_to_event",
+  "event",
+  "group",
+  # "INIT_AGE", ####
+  "age_at_status2",
+  "INIT_BMI_NEW",
+  "GENDER_NEW",
+  # "ETHCAT_NEW", ####
+  "ETHCAT2_NEW",
+  "BTYPE_REC",
+  # "DIAB", ####
+  "DIAB_Y",
+  "VENTILATOR_TCR",
+  # "PRIOR_CARD_SURG_TCR", ####
+  "PRIOR_CARD_SURG_TCR_Y",
+  "ISCH_CARD_Y",
+  # "DIAL_AFTER_LIST", ####
+  "DIAL_AFTER_LIST_Y"
+)  
+```
+
+
+```{r}
+heart_matrix <- 
+  baseline_variates[complete.cases(baseline_variates[, vars]), vars]
+
+# In the heart_matrix, 911 IDs were removed because they contained NA values
+
+```
+
+!!!! see Fine Gray Death/Deterioration Model
+
+```{r}
+covariate_matrix <- 
+  model.matrix(
+    ~ group +
+      age_at_status2 +  # updated age adjusted to landmark
+      GENDER_NEW +
+      INIT_BMI_NEW +
+      ETHCAT2_NEW +     # simplified ethnicity var
+      BTYPE_REC +
+      DIAB_Y +   # yes/no diabetes indicator 
+      VENTILATOR_TCR +
+      PRIOR_CARD_SURG_TCR_Y +  # binary indicator
+      ISCH_CARD_Y +
+      DIAL_AFTER_LIST_Y,       # binary indicator
+    data = heart_matrix
+  )[, -1]
+
+# str(heart_matrix)
+```
+
+# Fine Gray Models
+
+## Death/Deterioration Model
+
+This model is not working because when event = 1, the `DIAL_AFTER_LIST_Y` column is all `NA`
+
+```{r}
+crr(
+  ftime = heart_matrix$time_to_event,
+  fstatus = heart_matrix$event,
+  cov1 = covariate_matrix, 
+  failcode = 1,
+  cencode = 6
+)
+```
+
+# Transplantation
+
+```{r}
+fine_gray_transplant_model_adjusted <- 
+crr(
+  ftime = heart_matrix$time_to_event,
+  fstatus = heart_matrix$event,
+  cov1 = covariate_matrix, 
+  failcode = 2,
+  cencode = 6
+) ; summary(fine_gray_transplant_model_adjusted)
+```
+
