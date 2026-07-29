@@ -1,6 +1,6 @@
 ---
 title: "Baseline Variate Preparation for Analysis"
-author: "Jesus Rodriguez"
+author: "Jesus Rodriguez, Sydney Shimizu, Julia Aptekar"
 format: html
 embed-resources: true
 ---
@@ -138,6 +138,30 @@ label(baseline_variates$DIAL_AFTER_LIST) <- "Dialysis Occurring Between Listing 
 label(baseline_variates$group) <- "Escalated Status"
 ```
 
+### P-value shenanigans 
+
+code from table1 CRAN documentation for pvalues
+
+```{r}
+pvalue <- function(x, ...) {
+    # Construct vectors of data y, and groups (strata) g
+    y <- unlist(x)
+    g <- factor(rep(1:length(x), times=sapply(x, length)))
+    if (is.numeric(y)) {
+        # For numeric variables, perform a standard 2-sample t-test
+        p <- t.test(y ~ g)$p.value
+    } else {
+        # For categorical variables, perform a chi-squared test of independence
+        p <- chisq.test(table(y, g))$p.value
+    }
+    # Format the p-value, using an HTML entity for the less-than sign.
+    # The initial empty string places the output on the line below the variable label.
+    c("", sub("<", "&lt;", format.pval(p, digits=3, eps=0.001)))
+}
+```
+
+
+
 ### The Table 1
 
 ```{r, eval = F}
@@ -182,10 +206,49 @@ table1(
     ISCH_CARD_Y +
     DIAL_AFTER_LIST_Y
   | group,
-  data = baseline_variates,
-  overall = "Overall"
+  data = baseline_variates
+  # overall = F
+  # extra.col = list(`p-value`=pvalue)
 )
 ```
+
+```{r}
+# Overall Statistics
+table1(
+  ~ group + 
+    age_at_status2 +
+    INIT_BMI_NEW +
+    GENDER_NEW +
+    ETHCAT2_NEW +
+    BTYPE_REC +
+    DIAB_Y +
+    VENTILATOR_TCR +
+    PRIOR_CARD_SURG_TCR_Y +
+    ISCH_CARD_Y +
+    DIAL_AFTER_LIST_Y,
+  data = baseline_variates,
+)
+```
+
+
+```{r}
+# Table of covariates by group AND event
+table1(
+  ~ age_at_status2 +
+    INIT_BMI_NEW +
+    GENDER_NEW +
+    ETHCAT2_NEW +
+    BTYPE_REC +
+    DIAB_Y +
+    VENTILATOR_TCR +
+    PRIOR_CARD_SURG_TCR_Y +
+    ISCH_CARD_Y +
+    DIAL_AFTER_LIST_Y
+  | group*event,
+  data = baseline_variates
+  )
+```
+
 
 # Covariate Matrix Preparation
 
@@ -227,7 +290,7 @@ heart_matrix <-
 ```
 
 ::: {.callout-important}
-In this complete cases `heart_matrix`, there are not values of event being **1** or 3 (didn't really check closely for 3 but I assume so because there is none in the heart_matrix), because all those rows where that is the case all have `NA` values.
+In this complete cases `heart_matrix`, there are no values of event being **1** or 3, because all those rows where that is the case all have `NA` values.
 
 This affects both our unadjusted and adjusted models!!!
 :::
@@ -628,7 +691,7 @@ kable_table_unadjusted <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   # we can mess with this to change the title font and size
-    caption   = '<center><span style="font-size:18pt; font-weight:bold;">New Kable Table Unadjusted</span></center>'
+    caption = "New Kable Table Unadjusted"
   ) |>
   kable_styling(
     full_width = T,
@@ -660,6 +723,9 @@ kable_table_unadjusted <-
 # save_kable(kable_table_unadjusted, file = "new_unadjusted_results_table.png")
 ```
 
+```{r, error = T}
+kable_table_unadjusted
+```
 
 
 
@@ -1264,7 +1330,7 @@ kable_table_adjusted <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   # we can mess with this to change the title font and size
-    caption   = '<center><span style="font-size:18pt; font-weight:bold;">New Kable Table Adjusted</span></center>'
+    caption = "New Kable Table Unadjusted"
   ) |>
   kable_styling(
     full_width = T,
@@ -1295,3 +1361,8 @@ kable_table_adjusted <-
 
 # save_kable(kable_table_adjusted, file = "new_adjusted_results_table.png")
 ```
+
+```{r, error = T}
+kable_table_adjusted
+```
+
