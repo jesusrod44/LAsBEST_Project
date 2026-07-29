@@ -89,7 +89,7 @@ pval_label <- paste0(
 
 ```{r}
 
-# Plotting the CIF
+# Original CIF Plot Code with Events 1-7
 
 # Plot the CIF
 
@@ -139,5 +139,387 @@ ggcompetingrisks(
     panel.grid.minor = element_blank()
   )
 
+# CHANGE TO YOUR PATH 
 ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/sidecifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+## CIF Plot Accounting for Censored 
+
+```{r}
+
+# Creating CIF Fit
+cif_fit <- cuminc(
+  ftime   = heart3$time_to_event,
+  fstatus = heart3$event,
+  group   = heart3$group,
+  cencode="6" #accounts for censored
+)
+# Plotting the CIF
+
+# Plot the CIF
+
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("red", "orange", "yellow", "green","blue","purple"),
+  linetype        = c("solid", "dotted"),
+  size            = 15
+) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3
+  ) +
+  
+  # limits() sets the limits for how many days past being placed in status 2
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40), limits = c(0, 40)) +
+  
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange", "3"="yellow","4"="green","5"="blue", "7" ="purple"),
+    labels = c("Death","Transplanted","Recovery","Downgrade","Upgrade","Delist")
+  ) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Stable", "Escalated") #Stable=Solid, Escalated=Dotted
+  ) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+# CHANGE TO YOUR PATH 
+ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/cifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+## Individual CIF Plots
+
+### Death, Transplant, and Downgrade
+
+```{r}
+
+# Refitting CIF
+
+# Only including Death, Transplant, and Downgrade
+heart3<-heart3 %>%
+  mutate(
+    event_1=ifelse(event %in% c(1,2,4),event,0)
+  )
+
+cif_fit <- cuminc(
+  ftime   = heart3$time_to_event,
+  fstatus = heart3$event_1,
+  group   = heart3$group,
+)
+
+#Redoing p-value labels to match plot
+
+pval_label1 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Downgrade: p-value=", format_pval(pval_downgrade)
+)
+
+# Plotting the CIF
+
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("red", "orange", "green"),
+  linetype        = c("solid", "dotted"),
+  size            = 15
+) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label1, #label from above
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3
+  ) +
+  
+  # limits() sets the limits for how many days past being placed in status 2
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40), limits = c(0, 40)) +
+  
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange","4"="green"),
+    labels = c("Death","Transplanted","Downgrade")
+  ) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Stable", "Escalated") #Stable=Solid, Escalated=Dotted
+  ) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+# CHANGE TO YOUR PATH 
+ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/downgradecifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+### Death, Transplant, and Upgrade
+
+```{r}
+
+# Refitting CIF to only include Death, Transplant, and Upgrade
+
+heart3<-heart3 %>%
+  mutate(
+    event_2=ifelse(event %in% c(1,2,5),event,0)
+  )
+
+cif_fit <- cuminc(
+  ftime   = heart3$time_to_event,
+  fstatus = heart3$event_2,
+  group   = heart3$group,
+)
+
+#Relabeling p-values to match plot
+
+pval_label2 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Upgrade: p-value=", format_pval(pval_upgrade)
+)
+
+# Plotting the CIF
+
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("red", "orange", "blue"),
+  linetype        = c("solid", "dotted"),
+  size            = 15
+) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label2,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3
+  ) +
+  
+  # limits() sets the limits for how many days past being placed in status 2
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40), limits = c(0, 40)) +
+  
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange","5"="blue"),
+    labels = c("Death","Transplanted","Upgrade")
+  ) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Stable", "Escalated") #Stable=Solid, Escalated=Dotted
+  ) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+# CHANGE TO YOUR PATH 
+ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/upgradecifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+### Death, Transplant, Downgrade, and Upgrade (Original Side Project)
+
+```{r}
+
+# Refitting CIF to only include Death, Transplant, Downgrade, and Upgrade
+
+heart3<-heart3 %>%
+  mutate(
+    event_4=ifelse(event %in% c(1,2,4,5),event,0)
+  )
+
+cif_fit <- cuminc(
+  ftime   = heart3$time_to_event,
+  fstatus = heart3$event_4,
+  group   = heart3$group,
+)
+
+#Relabeling p-values to match plot
+
+pval_label4 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Downgrade: p-value=", format_pval(pval_downgrade), "\n",
+  "Upgrade: p-value=", format_pval(pval_upgrade)
+)
+
+# Plotting the CIF
+
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("red", "orange", "green", "blue"),
+  linetype        = c("solid", "dotted"),
+  size            = 15
+) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label4,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3
+  ) +
+  
+  # limits() sets the limits for how many days past being placed in status 2
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40), limits = c(0, 40)) +
+  
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange","4"="green", "5"="blue"),
+    labels = c("Death","Transplanted","Downgrade", "Upgrade")
+  ) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Stable", "Escalated") #Stable=Solid, Escalated=Dotted
+  ) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+# CHANGE TO YOUR PATH 
+ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/newcifplot.png", width = 35, height = 6, dpi = 300)
+
+```
+
+### Death, Transplant, and Delist
+
+```{r}
+
+# Refitting CIF
+
+heart3<-heart3 %>%
+  mutate(
+    event_3=ifelse(event %in% c(1,2,7),event,0)
+  )
+
+# Creating CIF Fit
+cif_fit <- cuminc(
+  ftime   = heart3$time_to_event,
+  fstatus = heart3$event_3,
+  group   = heart3$group,
+)
+
+#p-value labels
+
+pval_label3 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Delist: p-value=", format_pval(pval_delist)
+)
+
+# Plotting the CIF
+
+# Plot the CIF
+
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("red", "orange", "purple"),
+  linetype        = c("solid", "dotted"),
+  size            = 15
+) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label3,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3
+  ) +
+  
+  # limits() sets the limits for how many days past being placed in status 2
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40), limits = c(0, 40)) +
+  
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange","7"="purple"),
+    labels = c("Death","Transplanted","Delist")
+  ) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Stable", "Escalated") #Stable=Solid, Escalated=Dotted
+  ) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group"
+  ) +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank()
+  )
+
+# CHANGE TO YOUR PATH 
+ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/delistcifplot.png", width = 35, height = 6, dpi = 300)
 ```
