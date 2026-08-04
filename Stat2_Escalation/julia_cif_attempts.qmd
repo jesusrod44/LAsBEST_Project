@@ -1,0 +1,503 @@
+---
+title: "Julia's CIF attempts"
+author: "Julia Aptekar"
+format: html
+editor: visual
+---
+
+## CIF Plot
+```{r}
+# Data Load
+heart3 <- read.csv("data/heart3.csv")
+
+# install.packages("survminer") 
+
+library(cmprsk)
+library(survminer)
+library(dplyr)
+```
+
+```{r}
+# We are looking at the events: death/deterioration(1), transplant(2), recovery(3), upgrade(4), downgrade(5), delisted/status 2999(6), and censored(0).
+
+table(heart3$FSTATUS_NEW)
+```
+
+```{r}
+# Creating Labels
+heart3 <- heart3 %>%
+  filter(!is.na(FTIME_NEW), !is.na(FSTATUS_NEW), !is.na(group)) %>%
+  mutate(group = factor(group, levels = c(0, 1),
+                            labels = c("Initially Listed At Status 2", "Reached Status 2 Later")))
+```
+
+```{r}
+# Creating CIF Fit
+cif_fit <- cuminc(
+  ftime   = heart3$FTIME_NEW,
+  fstatus = heart3$FSTATUS_NEW,
+  group   = heart3$group,
+  cencode = 0)
+
+# Double Checking
+cif_fit$Tests
+table(heart3$group, heart3$FTIME_NEW)
+unique(heart3[,"group"])
+
+# Checking Order for Proper Labeling
+levels(factor(heart3$group))
+levels(factor(heart3$FSTATUS_NEW))
+
+# Looking at Range of Values to set limits () in CIF Plot (0 days-490 days)
+table(heart3$FTIME_NEW)
+
+# Count events after 90 days
+events_after_90 <-sum(heart3$FTIME_NEW>90)
+events_after_90
+# There are 71 events after 90 days
+
+# Count events after 180 days
+events_after_180 <-sum(heart3$FTIME_NEW>180)
+events_after_180
+# There are 9 events after 180 days
+```
+
+```{r}
+# Creating p-values for the Plot
+pval_death <- round(cif_fit$Tests["1", "pv"], 3)
+pval_transplant <- round(cif_fit$Tests["2", "pv"], 3)
+pval_recovery <- round(cif_fit$Tests["3", "pv"], 3)
+pval_upgrade <- round(cif_fit$Tests["4","pv"], 3)
+pval_downgrade <- round(cif_fit$Tests["5","pv"], 3)
+pval_delist <- round(cif_fit$Tests["6","pv"], 3)
+
+# Nicely formats small p-values as e.g. "< 0.001"
+format_pval <- function(p) {
+  ifelse(p < 0.001, "< 0.001", as.character(round(p, 3)))
+}
+
+pval_label <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Recovery: p-value = ", format_pval(pval_recovery), "\n",
+  "Upgrade: p-value=", format_pval(pval_upgrade), "\n",
+  "Downgrade: p-value=", format_pval(pval_downgrade), "\n",
+  "Delist: p-value=", format_pval(pval_delist))
+```
+
+```{r}
+# Original CIF Plot Code with Events 1-6
+
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette = c("red", "orange", "yellow", "blue", "green", "purple"),
+  linetype        = c("solid", "dotted"),
+  size            = 15) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3) +
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90), limits = c(0, 90)) +
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+  values = c("red", "orange", "yellow", "blue", "green", "purple"),
+  labels = c("Death", "Transplanted", "Recovery", "Upgrade", "Downgrade", "Delist")) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Initially Listed", "Escalated")) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group") +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank())
+
+# CHANGE TO YOUR PATH 
+#ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/sidecifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+## CIF Plot Accounting for Censored
+```{r}
+# Creating CIF Fit
+cif_fit <- cuminc(
+  ftime   = heart3$FTIME_NEW,
+  fstatus = heart3$FSTATUS_NEW,
+  group   = heart3$group,
+  cencode = 0)
+
+# Plot the CIF
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette = c("red", "orange", "yellow", "blue", "green", "purple"),
+  linetype        = c("solid", "dotted"),
+  size            = 15) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3) +
+  
+  # limits() sets the limits for how many days past being placed in status 2
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90), limits = c(0, 90)) +
+  
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange", "3"="yellow", "4"="blue", "5"="green", "6"="purple"),   
+    labels = c("Death","Transplanted","Recovery","Upgrade","Downgrade","Delist")) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Initially Listed", "Escalated")) + #Stable=Solid, Escalated=Dotted
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group") +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank())
+
+# CHANGE TO YOUR PATH 
+#ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/cifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+## CIF Plots
+
+### All Events Besides Recovery
+
+```{r}
+heart3<-heart3 %>%
+  mutate(event_5=ifelse(FSTATUS_NEW %in% c(1,2,4,5,6),FSTATUS_NEW,0))
+
+cif_fit <- cuminc(
+  ftime   = heart3$FTIME_NEW,
+  fstatus = heart3$event_5,
+  group   = heart3$group,
+  cencode = 0)
+
+#Redoing p-value labels to match plot
+
+pval_label5 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Downgrade: p-value=", format_pval(pval_downgrade), "\n",
+  "Upgrade: p-value=", format_pval(pval_upgrade),"\n",
+  "Delist: p-value=", format_pval(pval_delist))
+
+# Plotting the CIF
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette = c("red", "orange", "blue", "green", "purple"),  
+  linetype        = c("solid", "dotted"),
+  size            = 15) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label5, #label from above
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3) +
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90), limits = c(0, 90)) +
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange", "4"="blue", "5"="green", "6"="purple"),   
+    labels = c("Death","Transplanted","Upgrade","Downgrade","Delist")) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Initially Listed", "Escalated")) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group") +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank())
+
+# CHANGE TO YOUR PATH 
+#ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/updatedcifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+### Death, Transplant, and Downgrade
+
+```{r}
+# Refitting CIF
+# Only including Death, Transplant, and Downgrade
+heart3<-heart3 %>%
+  mutate(
+    event_1=ifelse(FSTATUS_NEW %in% c(1,2,5),FSTATUS_NEW,0))
+
+cif_fit <- cuminc(
+  ftime   = heart3$FTIME_NEW,
+  fstatus = heart3$event_1,
+  group   = heart3$group,
+  cencode = 0)
+
+#Redoing p-value labels to match plot
+pval_label1 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Downgrade: p-value=", format_pval(pval_downgrade))
+
+# Plotting the CIF
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("red", "orange", "green"),
+  linetype        = c("solid", "dotted"),
+  size            = 15) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label1, #label from above
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3) +
+    scale_x_continuous(breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90), limits = c(0, 90)) +
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange", "5"="green"),
+    labels = c("Death","Transplanted","Downgrade")) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Initially Listed", "Escalated")) + 
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group") +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank())
+
+# CHANGE TO YOUR PATH 
+#ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/downgradecifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+### Death, Transplant, and Upgrade
+
+```{r}
+# Refitting CIF to only include Death, Transplant, and Upgrade
+heart3<-heart3 %>%
+  mutate(
+    event_2=ifelse(FSTATUS_NEW %in% c(1,2,4),FSTATUS_NEW,0))
+
+cif_fit <- cuminc(
+  ftime   = heart3$FTIME_NEW,
+  fstatus = heart3$event_2,
+  group   = heart3$group,
+  cencode = 0)
+
+#Relabeling p-values to match plot
+pval_label2 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Upgrade: p-value=", format_pval(pval_upgrade))
+
+# Plotting the CIF
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("red", "orange", "blue"),
+  linetype        = c("solid", "dotted"),
+  size            = 15) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label2,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3) +
+  
+  # limits() sets the limits for how many days past being placed in status 2
+  scale_x_continuous(breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90), limits = c(0, 90)) +
+  
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange", "4"="blue"),
+    labels = c("Death","Transplanted","Upgrade")) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Initially Listed", "Escalated")) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group") +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank())
+
+# CHANGE TO YOUR PATH 
+#ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/upgradecifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+### Death, Transplant, Downgrade, and Upgrade (Original Side Project)
+
+```{r}
+# Refitting CIF to only include Death, Transplant, Downgrade, and Upgrade
+
+heart3 <- heart3 %>%
+  mutate(
+    event_4=ifelse(FSTATUS_NEW %in% c(1,2,4,5),FSTATUS_NEW,0))
+
+cif_fit <- cuminc(
+  ftime   = heart3$FTIME_NEW,
+  fstatus = heart3$event_4,
+  group   = heart3$group,
+  cencode = 0)
+
+#Relabeling p-values to match plot
+pval_label4 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Downgrade: p-value=", format_pval(pval_downgrade), "\n",
+  "Upgrade: p-value=", format_pval(pval_upgrade))
+
+# Plotting the CIF
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette = c("red", "orange", "blue", "green"),
+  linetype        = c("solid", "dotted"),
+  size            = 15) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label4,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3) +
+    scale_x_continuous(breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90), limits = c(0, 90)) +
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange", "4"="blue", "5"="green"),
+labels = c("Death", "Transplanted", "Upgrade", "Downgrade")) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Initially Listed", "Escalated")) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group") +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank())
+
+# CHANGE TO YOUR PATH 
+#ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/newcifplot.png", width = 35, height = 6, dpi = 300)
+```
+
+### Death, Transplant, and Delist
+```{r}
+# Refitting CIF
+heart3<-heart3 %>%
+  mutate(
+    event_3=ifelse(FSTATUS_NEW %in% c(1,2,6),FSTATUS_NEW,0))
+
+# Creating CIF Fit
+cif_fit <- cuminc(
+  ftime   = heart3$FTIME_NEW,
+  fstatus = heart3$event_3,
+  group   = heart3$group,
+  cencode = 0)
+
+#p-value labels
+pval_label3 <- paste0(
+  "Death/Deterioration: p-value = ", format_pval(pval_death), "\n",
+  "Transplanted: p-value = ", format_pval(pval_transplant), "\n",
+  "Delist: p-value=", format_pval(pval_delist))
+
+# Plot the CIF
+ggcompetingrisks(
+  fit             = cif_fit,
+  multiple_panels = FALSE,
+  conf.int        = FALSE,
+  palette         = c("red", "orange", "purple"),
+  linetype        = c("solid", "dotted"),
+  size            = 15) +
+  annotate(
+    "text",
+    x        = 1,
+    y        = 0.95,
+    label    = pval_label3,
+    hjust    = 0,
+    vjust    = 1,
+    fontface = "bold",
+    size     = 3) +
+    scale_x_continuous(breaks = c(0, 10, 20, 30, 40, 50, 60, 70, 80, 90), limits = c(0, 90)) +
+  scale_y_continuous(breaks = seq(0, 0.9, by = 0.3), limits = c(0, 1)) +
+  scale_color_manual(
+    values = c("1"="red", "2"="orange","6"="purple"),
+    labels = c("Death","Transplanted","Delist")) +
+  scale_linetype_manual(
+    values = c("solid", "dotted"),
+    labels = c("Initially Listed", "Escalated")) +
+  labs(
+    x        = "Days since placed in status 2",
+    y        = "Cumulative incidence function",
+    color    = "Event",
+    linetype = "Group") +
+  theme_bw() +
+  theme(
+    legend.position  = "top",
+    legend.text      = element_text(face = "bold", size = 10),
+    axis.title       = element_text(face = "bold", size = 10),
+    axis.text        = element_text(size = 10),
+    panel.grid.minor = element_blank())
+
+# CHANGE TO YOUR PATH 
+#ggsave("C:/Users/12063/Documents/Programming in R/LAsBEST/delistcifplot.png", width = 35, height = 6, dpi = 300)
+```
