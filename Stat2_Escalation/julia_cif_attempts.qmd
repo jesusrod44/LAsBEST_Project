@@ -7,7 +7,6 @@ embed-resources: true
 ---
 
 ```{r}
-# Data Load
 library(cmprsk)
 library(survminer)
 library(dplyr)
