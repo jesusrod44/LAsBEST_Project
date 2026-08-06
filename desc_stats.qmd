@@ -67,10 +67,10 @@ heart2$EXCEPTION2 <- factor(heart2$EXCEPTION,
                                  labels = c("No Exception", "Exception"))
 # ESCALATED
 heart2$ESCALATED2 <- factor(heart2$ESCALATED, levels = c(0, 1),
-                           labels = c("Stable", "Esclatated"))
+                           labels = c("Stable", "Escalated"))
 
-heart2 <- 
-  heart2 |> 
+heart2 <-
+  heart2 |>
   drop_na()
 ```
 
@@ -85,20 +85,34 @@ label(heart2$BTYPE_REC) <- "Blood Type"
 label(heart2$EXCEPTION2) <- "Exception Status"
 label(heart2$DIAB2) <- "Diabetes"
 label(heart2$ESCALATED2) <- "Escalated Status"
+```
 
+
+```{r}
 # The Actual Table for Descriptive Statistics
+
 table1(
   ~ INIT_AGE +
     INIT_BMI_NEW +
     GENDER2 +
     ETHCAT2 +
     BTYPE_REC +
-    EXCEPTION2 +
-    DIAB2 |
+    # EXCEPTION2 +
+    DIAB2,
+  data = heart2,
+  caption = "<span style = font-weight:bold>Table 1.1 Descriptive Statistics</span style>")
+
+
+table1(
+  ~ EXCEPTION2 | 
     ESCALATED2,
   data = heart2,
-  caption = "<span style = font-weight:bold>Table 1. Descriptive Statistics by Escalation Status</span style>")
+  caption = "<span style = font-weight:bold>Table 1.2 Exception Status by Escalation Status</span style>")
 
+```
+
+
+```{r}
 # The Actual Table for Descriptive Statistics
 table1(
   ~ INIT_AGE +

@@ -10,14 +10,18 @@ embed-resources: true
 library(dplyr)
 library(lubridate)
 
-d <- readRDS("data/NEW_DATA.rds")
+# d <- readRDS("data/NEW_DATA.rds")
+d <- readRDS(file = "data/analysis_data.rds")
 ```
+
+
+
 
 ## Cleaning
 ```{r}
 data <- d %>% 
   select(WL_ID_CODE, WLREG_AUDIT_ID_CODE, INIT_STAT, INIT_DATE, CHG_DATE,
-         UNOS_CAND_STAT_CD, END_DATE_NEW, FTIME, FSTATUS, REM_CD_NEW, 
+         UNOS_CAND_STAT_CD, END_DATE_NEW, FTIME, FSTATUS_NEW, REM_CD, 
          DAYSWAIT_CHRON, INIT_AGE) %>%
   mutate(INIT_DATE = ymd(INIT_DATE),
     END_DATE_NEW = ymd(END_DATE_NEW),
@@ -88,9 +92,9 @@ event_rows <- data2 %>%
 # coding the event type
 heart_events <- event_rows %>%
   mutate(event = case_when(
-      event_source == "removal" & REM_CD_NEW %in% c(5, 8, 13) ~ 1, # death
-      event_source == "removal" & REM_CD_NEW %in% c(2, 3, 4, 14, 21, 22) ~ 2, # transplant
-      event_source == "removal" & REM_CD_NEW == 12 ~ 3, # recovery
+      event_source == "removal" & REM_CD %in% c(5, 8, 13) ~ 1, # death
+      event_source == "removal" & REM_CD %in% c(2, 3, 4, 14, 21, 22) ~ 2, # transplant
+      event_source == "removal" & REM_CD == 12 ~ 3, # recovery
       event_source == "status_change" & STATUS == 1 ~ 4, # downgrade
       event_source == "status_change" & STATUS %in% 3:6 ~ 5, # upgrade
       event_source == "status_change" & STATUS == 2999 ~ 7, # delisted
@@ -127,7 +131,7 @@ heart3 %>% count(event, event_source, sort = TRUE)
 # checking censoring codes
 heart3 %>%
   filter(event == 6) %>%
-  count(event_source, REM_CD_NEW, sort = TRUE)
+  count(event_source, REM_CD, sort = TRUE)
 ```
 
 ## Writing CSV
@@ -145,7 +149,7 @@ write.csv(heart3, "data/heart3.csv", row.names=FALSE)
 `event_date` is the date of the first event after `time0`.
 
 `event_source` shows where the event came from. 
-- If `event_source = "removal"`, the event was based on `END_DATE_NEW` and `REM_CD_NEW`.
+- If `event_source = "removal"`, the event was based on `END_DATE_NEW` and `REM_CD`.
 - If `event_source = "status_change"`, the event was based on `CHG_DATE` and `STATUS`.
 
 `event` identifies the type of first event after `time0`:

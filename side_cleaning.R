@@ -144,4 +144,3 @@ stat1_before_2_check |>
 
 groups |> 
   filter(WL_ID_CODE == 1762390)
-
