@@ -1,0 +1,1360 @@
+---
+title: "Baseline Variate Preparation for Analysis"
+author: "Jesus Rodriguez, Sydney Shimizu, Julia Aptekar"
+format: html
+embed-resources: true
+---
+
+HOPEFULLY... if cleaning stays the same, we should be able to replace `heart3` with what ever dataset we have after finally cleaning.
+
+With that replaced, everything should run and give us our table1, our unadjusted model results, and *eventually* our adjusted model results
+
+There is still some things we'll have to change, the adjusted models do not contain: 
+
+-   INIT_AGE
+-   ETHCAT_NEW
+-   DIAB
+-   PRIOR_CARD_SURG_TCR
+-   DIAL_AFTER_LIST
+
+I used only Dr. Kawaguchi's binary (0/1) variables in those models, and didn't include the original inital listing at age, they should be there and you can just uncomment them if I remembered to put them there
+
+There is a big problem with DIAL_AFTER_LIST and DIAL_AFTER_LIST_Y, these columns are all NA for events 1 and 3. 
+
+We also have only 2 observations when `FSTATUS_NEW = 3`. 
+
+The Kable Table will need some uncommenting when we figure out what to do with all the NA values as well.
+
+## Libraries/Loading
+```{r setup}
+library(tidyverse) # general tidying and manipulation
+library(readxl) # reading xlsx files
+library(kableExtra) # nice tables
+library(lubridate) # easier working with dates
+library(survival)
+library(survminer)
+library(table1)
+library(cmprsk)
+library(KMsurv)
+
+# d <- readRDS("data/NEW_DATA.rds")
+heart3 <- read_csv("data/heart3.csv", show_col_types = FALSE)
+```
+
+# Baseline Variates
+
+```{r}
+baseline_variates <- 
+  heart3 |> 
+  select(WL_ID_CODE,
+         INIT_AGE, 
+         age_at_status2, 
+         GENDER_NEW,
+         INIT_BMI_NEW,
+         ETHCAT_NEW,
+         ETHCAT2_NEW,
+         BTYPE_REC,
+         DIAB,     # THERE ARE FOUR `Diabetes Status Unknown` obs in `DIAB`
+         DIAB_Y,   # DR. KAWAGUCHI seemed to set them as NOT HAVING DIABETES
+         VENTILATOR_TCR,
+         PRIOR_CARD_SURG_TCR,
+         PRIOR_CARD_SURG_TCR_Y,
+         ISCH_CARD_Y,
+         DIAL_AFTER_LIST,
+         DIAL_AFTER_LIST_Y,
+         
+         group, # grouping variable
+         
+         FTIME_NEW,
+         FSTATUS_NEW) |> 
+  mutate(
+    across(
+      c(INIT_AGE,
+        age_at_status2,
+        INIT_BMI_NEW, 
+        FTIME_NEW),
+      as.numeric
+    ),
+    across(
+      c(WL_ID_CODE,
+        GENDER_NEW,
+        ETHCAT_NEW,
+        ETHCAT2_NEW,
+        BTYPE_REC,
+        DIAB,
+        DIAB_Y,
+        VENTILATOR_TCR,
+        PRIOR_CARD_SURG_TCR,
+        PRIOR_CARD_SURG_TCR_Y,
+        ISCH_CARD_Y,
+        DIAL_AFTER_LIST,
+        DIAL_AFTER_LIST_Y,
+        FSTATUS_NEW),
+      as.factor),
+    group = factor(group,
+                   levels = c(0,1),
+                   labels = c("Initially Listed at Status 2", "Reached Status 2 Later")))
+         
+```
+
+# Demographics
+
+## Amount of Each Event Table
+
+```{r}
+baseline_variates |> 
+  group_by(FSTATUS_NEW) |> 
+  count()
+```
+
+## Table 1
+
+### Table Prep
+
+```{r}
+label(baseline_variates$INIT_AGE) <- "Age at Listing"
+label(baseline_variates$age_at_status2) <- "Age when cand. reached Status 2"
+label(baseline_variates$INIT_BMI_NEW) <- "BMI at Listing"
+label(baseline_variates$GENDER_NEW) <- "Gender"
+label(baseline_variates$ETHCAT_NEW) <- "Race/Ethnicity (unsimplified)"
+label(baseline_variates$ETHCAT2_NEW) <- "Race/Ethnicity"
+label(baseline_variates$BTYPE_REC) <- "Blood Type"
+label(baseline_variates$DIAB) <- "Diabetes Status"
+label(baseline_variates$DIAB_Y) <- "Diabetes Status (0/1)"
+label(baseline_variates$VENTILATOR_TCR) <- "Patient on Life Support (0/1)"
+label(baseline_variates$PRIOR_CARD_SURG_TCR) <- "Prior Cardiace Sx at Listing (Non-Transplant)"
+label(baseline_variates$PRIOR_CARD_SURG_TCR_Y) <- "Prior Cardiace Sx at Listing (Non-Transplant) (0/1)"
+label(baseline_variates$ISCH_CARD_Y) <- "ISCH CARD (0/1)" # NOT SURE ABOUT THIS ONE
+label(baseline_variates$DIAL_AFTER_LIST) <- "Dialysis Occurring Between Listing and Transplant"
+label(baseline_variates$DIAL_AFTER_LIST) <- "Dialysis Occurring Between Listing and Transplant (0/1)"
+label(baseline_variates$group) <- "Status 2 Entry"
+```
+
+### P-value shenanigans 
+
+code from table1 CRAN documentation for pvalues
+
+```{r}
+pvalue <- function(x, ...) {
+    # Construct vectors of data y, and groups (strata) g
+    y <- unlist(x)
+    g <- factor(rep(1:length(x), times=sapply(x, length)))
+    if (is.numeric(y)) {
+        # For numeric variables, perform a standard 2-sample t-test
+        p <- t.test(y ~ g)$p.value
+    } else {
+        # For categorical variables, perform a chi-squared test of independence
+        p <- chisq.test(table(y, g))$p.value
+    }
+    # Format the p-value, using an HTML entity for the less-than sign.
+    # The initial empty string places the output on the line below the variable label.
+    c("", sub("<", "&lt;", format.pval(p, digits=3, eps=0.001)))
+}
+```
+
+
+
+### The Table 1
+
+```{r, eval = F}
+# All variates
+
+table1(
+  ~ INIT_AGE +
+    age_at_status2 +
+    INIT_BMI_NEW +
+    GENDER_NEW +
+    ETHCAT_NEW +
+    ETHCAT2_NEW +
+    BTYPE_REC +
+    DIAB +
+    DIAB_Y +
+    VENTILATOR_TCR +
+    PRIOR_CARD_SURG_TCR +
+    PRIOR_CARD_SURG_TCR_Y +
+    ISCH_CARD_Y +
+    DIAL_AFTER_LIST +
+    DIAL_AFTER_LIST_Y
+  | group,
+  data = baseline_variates,
+  overall = "Overall"
+)
+```
+
+```{r}
+# Only the simple ones
+
+# We will probably want to use this one
+
+table1(
+  ~ age_at_status2 +
+    INIT_BMI_NEW +
+    GENDER_NEW +
+    ETHCAT2_NEW +
+    BTYPE_REC +
+    DIAB_Y +
+    VENTILATOR_TCR +
+    PRIOR_CARD_SURG_TCR_Y +
+    ISCH_CARD_Y +
+    DIAL_AFTER_LIST_Y
+  | group,
+  data = baseline_variates
+  # overall = F
+  # extra.col = list(`p-value`=pvalue)
+)
+```
+
+```{r}
+# Overall Statistics
+table1(
+  ~ group + 
+    age_at_status2 +
+    INIT_BMI_NEW +
+    GENDER_NEW +
+    ETHCAT2_NEW +
+    BTYPE_REC +
+    DIAB_Y +
+    VENTILATOR_TCR +
+    PRIOR_CARD_SURG_TCR_Y +
+    ISCH_CARD_Y +
+    DIAL_AFTER_LIST_Y,
+  data = baseline_variates,
+)
+```
+
+
+```{r}
+# Table of covariates by group AND event
+table1(
+  ~ age_at_status2 +
+    INIT_BMI_NEW +
+    GENDER_NEW +
+    ETHCAT2_NEW +
+    BTYPE_REC +
+    DIAB_Y +
+    VENTILATOR_TCR +
+    PRIOR_CARD_SURG_TCR_Y +
+    ISCH_CARD_Y +
+    DIAL_AFTER_LIST_Y
+  | group*FSTATUS_NEW,
+  data = baseline_variates
+  )
+```
+
+
+# Covariate Matrix Preparation
+
+For the Fine-Gray models
+
+*I commmented out the "duplicate" variables in case we will need them later*
+
+```{r}
+vars <- c(
+  "FTIME_NEW",
+  "FSTATUS_NEW",
+  "group",
+  # "INIT_AGE", ####
+  "age_at_status2",
+  "INIT_BMI_NEW",
+  "GENDER_NEW",
+  # "ETHCAT_NEW", ####
+  "ETHCAT2_NEW",
+  "BTYPE_REC",
+  # "DIAB", ####
+  "DIAB_Y",
+  "VENTILATOR_TCR",
+  # "PRIOR_CARD_SURG_TCR", ####
+  "PRIOR_CARD_SURG_TCR_Y",
+  "ISCH_CARD_Y",
+  # "DIAL_AFTER_LIST", ####
+  "DIAL_AFTER_LIST_Y"
+)  
+```
+
+
+
+```{r}
+heart_matrix <- 
+  baseline_variates[complete.cases(baseline_variates[, vars]), vars]
+
+# In the heart_matrix, 911 IDs were removed because they contained NA values
+
+```
+
+::: {.callout-important}
+In this complete cases `heart_matrix`, there are no values of event being **1** or 3, because all those rows where that is the case all have `NA` values.
+
+This affects both our unadjusted and adjusted models!!!
+:::
+
+## Unadjusted Covariate Matrix
+
+```{r}
+covariate_matrix_unadjusted <- 
+  model.matrix(
+    ~ group,
+    data = heart_matrix
+  )[, -1]
+
+# str(heart_matrix)
+```
+
+## Adjusted Covariate Matrix
+
+
+```{r}
+covariate_matrix_adjusted <- 
+  model.matrix(
+    ~ group +
+      # INIT_AGE + 
+      age_at_status2 +  # updated age adjusted to landmark
+      GENDER_NEW +
+      INIT_BMI_NEW +
+      # ETHCAT_NEW + 
+      ETHCAT2_NEW +     # simplified ethnicity var
+      BTYPE_REC +
+      # DIAB + 
+      DIAB_Y +   # yes/no diabetes indicator 
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      PRIOR_CARD_SURG_TCR_Y +  # binary indicator
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      DIAL_AFTER_LIST_Y,       # binary indicator
+    data = heart_matrix
+  )[, -1]
+
+# str(heart_matrix)
+```
+
+# Unadjusted Models
+
+## Cox Models
+
+```{r}
+# Cox Model 1 : Death / Deterioration
+cs_model_death_unadjusted <- 
+  baseline_variates %>% 
+  coxph(
+  Surv(FTIME_NEW, FSTATUS_NEW == 1) ~ 
+    group, 
+  data = .
+)
+summary(cs_model_death_unadjusted)
+
+```
+
+```{r}
+# Cox Model 2 : Transplant
+cs_model_transplant_unadjusted <- 
+  baseline_variates %>% 
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 2) ~ group,
+    data = .
+  ) ; summary(cs_model_transplant_unadjusted)
+
+```
+
+```{r}
+# Cox Model 3 : Recovery
+cs_model_recovery_unadjusted <- 
+  baseline_variates %>% 
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 3) ~ group,
+    data = .
+  ) ; summary(cs_model_recovery_unadjusted)
+```
+
+```{r}
+# Cox Model 4: Upgrade to Status 1
+cs_model_upgrade_unadjusted <- 
+  baseline_variates %>% 
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 4) ~ group,
+    data = .
+  ) ; summary(cs_model_upgrade_unadjusted)
+```
+
+```{r}
+# Cox Model 5: Downgrade to Status 3-6
+cs_model_downgrade_unadjusted <- 
+  baseline_variates %>% 
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 5) ~ group,
+    data = .
+  ) ; summary(cs_model_downgrade_unadjusted)
+```
+
+```{r}
+# Cox Model 7: Delisted
+cs_model_delisted_unadjusted <- 
+  baseline_variates %>% 
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 6) ~ group,
+    data = .
+  ) ; summary(cs_model_delisted_unadjusted)
+```
+
+## Fine Gray Models 
+
+### Death/Deterioration
+
+Error here
+
+```{r, error = T}
+fg_death_unadjusted <- 
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_unadjusted, 
+    failcode = 1
+  ) ; summary(fg_death_unadjusted)
+```
+
+### Transplant
+
+```{r}
+fg_transplant_unadjusted <- 
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_unadjusted, 
+    failcode = 2
+  ) ; summary(fg_transplant_unadjusted)
+```
+### Recovery 
+
+ERROR here
+
+```{r, error = T}
+fg_recovery_unadjusted <- 
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_unadjusted,
+    failcode = 3
+  ) ; summary(fg_recovery_unadjusted)
+```
+
+### Upgrade to Status 1
+
+```{r}
+fg_upgrade_unadjusted <- 
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_unadjusted,
+    failcode = 4
+  ) ; summary(fg_upgrade_unadjusted)
+```
+
+### Downgrade to Status 3-6
+
+```{r}
+fg_downgrade_unadjusted <- 
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_unadjusted,
+    failcode = 5
+  ) ; summary(fg_downgrade_unadjusted)
+```
+
+### Delisted
+
+```{r}
+fg_delisted_unadjusted <- 
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_unadjusted,
+    failcode = 6
+  ) ; summary(fg_delisted_unadjusted)
+```
+## Binomial Regression Models
+
+::: {.callout-important}
+Does anyone know what time will be here?
+
+I am keeping it to 30 days, but I'm pretty sure we can change it here
+:::
+
+```{r}
+library(mets)
+options(warn = 1)
+```
+
+### Death / Deterioration
+
+```{r}
+# Logistic Regression with IPCW Binomial Regression (Unadjusted) (Death)
+
+baseline_variates$CAUSE_DEATH <- ifelse(baseline_variates$FSTATUS_NEW == 1, 1, 0)
+
+binreg_death_unadjusted <- binreg(
+  Event(FTIME_NEW, CAUSE_DEATH) ~ group,
+  data = baseline_variates,
+  time = 30 
+) ; summary(binreg_death_unadjusted)
+
+```
+
+### Transplant 
+
+```{r}
+# Logistic Regression with IPCW Binomial Regression (Unadjusted) (Transplant)
+
+baseline_variates$CAUSE_T <- ifelse(baseline_variates$FSTATUS_NEW == 2, 1, 0)
+
+binreg_transplant_unadjusted <- binreg(
+  Event(FTIME_NEW, CAUSE_T) ~ group,
+  data = baseline_variates,
+  time = 30 
+) ; summary(binreg_transplant_unadjusted)
+
+```
+### Recovery 
+
+```{r}
+# Logistic Regression with IPCW Binomial Regression (Unadjusted) (Recovery)
+
+baseline_variates$CAUSE_R <- ifelse(baseline_variates$FSTATUS_NEW == 3, 1, 0)
+
+binreg_recovery_unadjusted <- binreg(
+  Event(FTIME_NEW, CAUSE_R) ~ group,
+  data = baseline_variates,
+  time = 30 
+) ; summary(binreg_recovery_unadjusted)
+
+```
+### Upgrade
+
+```{r}
+# Logistic Regression with IPCW Binomial Regression (Unadjusted) ( upgrade)
+
+baseline_variates$CAUSE_U <- ifelse(baseline_variates$FSTATUS_NEW == 4, 1, 0)
+
+binreg_upgrade_unadjusted <- binreg(
+  Event(FTIME_NEW, CAUSE_U) ~ group,
+  data = baseline_variates,
+  time = 30 
+) ; summary(binreg_upgrade_unadjusted)
+
+```
+### Downgrade
+
+```{r}
+# Logistic Regression with IPCW Binomial Regression (Unadjusted) (downgrade)
+
+baseline_variates$CAUSE_DG <- ifelse(baseline_variates$FSTATUS_NEW == 5, 1, 0)
+
+binreg_downgrade_unadjusted <- binreg(
+  Event(FTIME_NEW, CAUSE_DG) ~ group,
+  data = baseline_variates,
+  time = 30 
+) ; summary(binreg_downgrade_unadjusted)
+
+```
+
+### Delisted
+
+```{r}
+# Logistic Regression with IPCW Binomial Regression (Unadjusted) (delisted)
+
+baseline_variates$CAUSE_Dl <- ifelse(baseline_variates$FSTATUS_NEW == 6, 1, 0)
+
+binreg_delisted_unadjusted <- binreg(
+  Event(FTIME_NEW, CAUSE_Dl) ~ group,
+  data = baseline_variates,
+  time = 30 
+) ; summary(binreg_delisted_unadjusted)
+
+```
+
+# Kable Table Prep
+
+Assuming we want to make the exact same table from the poster, my code should work the same... hopefully
+
+## Function to extract the info we need from the cox models
+
+```{r}
+# Extract from coxph model
+extract_cox <- function(model, outcome) {
+  s <- summary(model)
+  data.frame(
+    Outcome  = outcome,
+    Estimate       = s$conf.int[1, "exp(coef)"],
+    Lower    = s$conf.int[1, "lower .95"],
+    Upper    = s$conf.int[1, "upper .95"],
+    P        = s$coefficients[1, "Pr(>|z|)"]
+  )
+}
+```
+
+## Function to extract the info we need from the Fine-Gray models
+
+
+```{r}
+# Extract from crr model
+extract_crr <- function(model, outcome) {
+  s <- summary(model)
+  data.frame(
+    Outcome  = outcome,
+    Estimate       = s$conf.int[1, "exp(coef)"],
+    Lower    = s$conf.int[1, "2.5%"],
+    Upper    = s$conf.int[1, "97.5%"],
+    P        = s$coef[1, "p-value"]
+  )
+}
+```
+
+## Extract from binreg() model
+
+```{r}
+
+# Extract from binreg model
+extract_binreg <- function(model, outcome) {
+  s <- summary(model)
+  data.frame(
+    Outcome  = outcome,
+    Estimate       = s$exp[2, "Estimate"],
+    Lower    = s$exp[2, "2.5%"],
+    Upper    = s$exp[2, "97.5%"],
+    P        = s$coef[2, "P-value"]
+  )
+}
+```
+
+
+## Making the dataframe for the table 
+
+```{r}
+results_unadjusted <- 
+  bind_rows(
+    # Cox
+    extract_cox(cs_model_death_unadjusted, "Death / Deterioration"),
+    extract_cox(cs_model_transplant_unadjusted, "Transplant"),
+    extract_cox(cs_model_recovery_unadjusted, "Recovery"),
+    extract_cox(cs_model_upgrade_unadjusted, "Upgraded"),
+    extract_cox(cs_model_downgrade_unadjusted, "Downgraded"),
+    extract_cox(cs_model_delisted_unadjusted, "Delisted"),
+
+    # Fine Gray !!!
+    
+    # The Death and Recovery Models, due to the problems from before with the 
+    # NA values, are not working here, so I commented them out
+    # When we get them to work, 
+    # You should just be able to uncommented them and get the table
+    
+    # extract_crr(fg_death_unadjusted, "Death / Deterioration"), 
+    
+    extract_crr(fg_transplant_unadjusted, "Transplant"),
+    
+    # extract_crr(fg_recovery_unadjusted, "Recovery"),
+    
+    extract_crr(fg_upgrade_unadjusted, "Upgraded"),
+    extract_crr(fg_downgrade_unadjusted, "Downgraded"),
+    extract_crr(fg_delisted_unadjusted, "Delisted"),
+
+    # Direct Binomial Regression
+    extract_binreg(binreg_death_unadjusted, "Death / Deterioration"),
+    extract_binreg(binreg_transplant_unadjusted, "Transplant"),
+    extract_binreg(binreg_recovery_unadjusted, "Recovery"),
+    extract_binreg(binreg_upgrade_unadjusted, "Upgraded"),
+    extract_binreg(binreg_downgrade_unadjusted, "Downgraded"),
+    extract_binreg(binreg_delisted_unadjusted, "Delisted")
+  ) |>
+  mutate(
+    Estimate = round(Estimate, 2),
+    CI = paste0("(", round(Lower, 2), " , ", round(Upper, 2), ")"),
+    P  = ifelse(P < 0.001, "P < 0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, Estimate, CI, P)
+
+# results_adjusted$P[6] <- cell_spec(results_adjusted$P[6], color = "#ED907E")
+```
+
+# The Kable Table
+
+```{r}
+kable_table_unadjusted <- 
+  results_unadjusted |>
+  kable(
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
+                  # we can mess with this to change the title font and size
+    caption = "New Kable Table Unadjusted"
+  ) |>
+  kable_styling(
+    full_width = T,
+    # position = 'left',
+    font_size = 19
+  ) |> 
+  column_spec(1, width = '10em', bold = T, color = "black") |> 
+  column_spec(2:4, width = "7em", bold = T, color = "black") |> 
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 6) |>
+  
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 7, 10) |> ## IMPORTANT!!!
+  # due to issues with Fine Gray right now, the `start_row` and `end_row` values
+  # will need to change
+  
+  pack_rows("Direct Binomial Regression Model (OR*)", 11, 16) ## They'll need to change here to!!!
+```
+
+```{r}
+# Run this if you made changes to the table and want to save it as a png
+
+# sometimes I have problems with `save_kable()` and this usually fixes it, but you need to know where your browser is installed in your device
+
+# Sys.setenv(
+#   CHROMOTE_CHROME =
+#     "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+# )
+
+
+# save_kable(kable_table_unadjusted, file = "new_unadjusted_results_table.png")
+```
+
+```{r, error = T}
+kable_table_unadjusted
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Adjusted Models
+
+## Cox Models
+
+I commented out the "duplicate" variables in case we will need them later in the models
+
+### Death / Deterioration 
+
+ERROR here
+
+```{r, error = T}
+# Cox Model 1 : Death / Deterioration
+cs_model_death_adjusted <- 
+  baseline_variates %>% 
+  coxph(
+  Surv(FTIME_NEW, FSTATUS_NEW == 1) ~ 
+    group + 
+    # INIT_AGE + 
+    age_at_status2 + 
+    INIT_BMI_NEW + 
+    GENDER_NEW +
+    # ETHCAT_NEW +
+    ETHCAT2_NEW + 
+    BTYPE_REC +
+    # DIAB + 
+    DIAB_Y +
+    VENTILATOR_TCR + 
+    # PRIOR_CARD_SURG_TCR + 
+    PRIOR_CARD_SURG_TCR_Y + 
+    ISCH_CARD_Y + 
+    # DIAL_AFTER_LIST + 
+    DIAL_AFTER_LIST_Y,
+  data = .
+) 
+summary(cs_model_death_adjusted)
+```
+
+### Transplant
+
+```{r}
+# Cox Model 2 : Transplant
+cs_model_transplant_adjusted <- 
+  baseline_variates %>% 
+  coxph(
+  Surv(FTIME_NEW, FSTATUS_NEW == 2) ~ 
+    group + 
+    # INIT_AGE + 
+    age_at_status2 + 
+    INIT_BMI_NEW + 
+    GENDER_NEW +
+    # ETHCAT_NEW +
+    ETHCAT2_NEW + 
+    BTYPE_REC +
+    # DIAB + 
+    DIAB_Y +
+    VENTILATOR_TCR + 
+    # PRIOR_CARD_SURG_TCR + 
+    PRIOR_CARD_SURG_TCR_Y + 
+    ISCH_CARD_Y + 
+    # DIAL_AFTER_LIST + 
+    DIAL_AFTER_LIST_Y,
+  data = .
+) ; summary(cs_model_transplant_adjusted)
+```
+
+### Recovery
+
+!! ERROR
+
+```{r, error = T}
+# Cox Model 3 : Recovery
+cs_model_recovery_adjusted <-
+  baseline_variates %>%
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 3) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = .
+  )
+
+summary(cs_model_recovery_adjusted)
+```
+
+
+### Upgrade 
+
+```{r}
+# Cox Model 4 : Upgrade
+cs_model_upgrade_adjusted <-
+  baseline_variates %>%
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 4) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = .
+  )
+
+summary(cs_model_upgrade_adjusted)
+```
+
+
+### Downgrade 
+
+```{r}
+# Cox Model 5 : Downgrade
+cs_model_downgrade_adjusted <-
+  baseline_variates %>%
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 5) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = .
+  )
+
+summary(cs_model_downgrade_adjusted)
+```
+
+
+### Delisted
+
+```{r}
+# Cox Model 6 : Delisted
+cs_model_delisted_adjusted <-
+  baseline_variates %>%
+  coxph(
+    Surv(FTIME_NEW, FSTATUS_NEW == 6) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = .
+  )
+
+summary(cs_model_delisted_adjusted)
+```
+
+
+## Fine Gray Models
+
+### Death/Deterioration Model
+
+NOT WORKING DUE TO `DIAL` column being all NAs for when `FSTATUS_NEW = 1`
+
+```{r, error = T}
+fg_death_adjusted <- 
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_adjusted, 
+    failcode = 1
+  )
+summary(fg_death_adjusted)
+```
+
+### Transplantation
+
+```{r}
+fg_transplant_adjusted <- 
+crr(
+  ftime = heart_matrix$FTIME_NEW,
+  fstatus = heart_matrix$FSTATUS_NEW,
+  cov1 = covariate_matrix_adjusted, 
+  failcode = 2
+) ; summary(fg_transplant_adjusted)
+```
+
+### Recovery 
+
+!! Error here
+
+```{r, error = T}
+fg_recovery_adjusted <-
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_adjusted,
+    failcode = 3
+    )
+
+summary(fg_recovery_adjusted)
+```
+
+
+### Upgrade
+
+```{r}
+fg_upgrade_adjusted <-
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_adjusted,
+    failcode = 4
+    )
+
+summary(fg_upgrade_adjusted)
+```
+
+
+### Downgrade
+
+```{r}
+fg_downgrade_adjusted <-
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_adjusted,
+    failcode = 5
+  )
+
+summary(fg_downgrade_adjusted)
+```
+
+
+### Delisted
+
+```{r}
+fg_delisted_adjusted <-
+  crr(
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
+    cov1 = covariate_matrix_adjusted,
+    failcode = 6
+  )
+
+summary(fg_delisted_adjusted)
+```
+
+
+## Direct Binomial Regression Models
+
+These adjusted models are not working because there are 911 rows where there are `NA` values
+
+I am going to drop the rows for now, but this will mean the Death and Recovery models aren't going to work/exist
+
+```{r}
+# Dropping na rows
+
+adjusted_binreg_data <- baseline_variates |> 
+  drop_na()
+
+```
+
+
+### Death 
+
+Because of dropping NA values, there are no observations where `FSTATUS_NEW = death`
+
+
+```{r, error = T}
+binreg_death_adjusted <-
+  binreg(
+    Event(FTIME_NEW, CAUSE_DEATH) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = adjusted_binreg_data,
+    time = 30
+  )
+
+summary(binreg_death_adjusted)
+```
+
+### Transplant
+
+```{r}
+binreg_transplant_adjusted <-
+  binreg(
+    Event(FTIME_NEW, CAUSE_T) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = adjusted_binreg_data,
+    time = 30
+  )
+
+summary(binreg_transplant_adjusted)
+```
+
+
+### Recovery 
+
+Because of dropping NA values, there are no observations where `FSTATUS_NEW = recovery`
+
+
+```{r}
+binreg_recovery_adjusted <-
+  binreg(
+    Event(FTIME_NEW, CAUSE_R) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = adjusted_binreg_data,
+    time = 30
+  )
+
+summary(binreg_recovery_adjusted)
+```
+
+
+
+### Upgrade
+
+```{r}
+binreg_upgrade_adjusted <-
+  binreg(
+    Event(FTIME_NEW, CAUSE_U) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = adjusted_binreg_data,
+    time = 30
+  )
+
+summary(binreg_upgrade_adjusted)
+```
+
+
+### Downgrade
+
+```{r}
+binreg_downgrade_adjusted <-
+  binreg(
+    Event(FTIME_NEW, CAUSE_DG) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = adjusted_binreg_data,
+    time = 30
+  )
+
+summary(binreg_downgrade_adjusted)
+```
+
+### Delisted
+
+```{r}
+binreg_delisted_adjusted <-
+  binreg(
+    Event(FTIME_NEW, CAUSE_Dl) ~
+      group +
+      # INIT_AGE +
+      age_at_status2 +
+      INIT_BMI_NEW +
+      GENDER_NEW +
+      # ETHCAT_NEW +
+      
+      ETHCAT2_NEW +
+      BTYPE_REC +
+      # DIAB + 
+      
+      DIAB_Y +
+      VENTILATOR_TCR +
+      # PRIOR_CARD_SURG_TCR + 
+      
+      PRIOR_CARD_SURG_TCR_Y +
+      ISCH_CARD_Y +
+      # DIAL_AFTER_LIST + 
+      
+      DIAL_AFTER_LIST_Y,
+    data = adjusted_binreg_data,
+    time = 30
+  )
+
+summary(binreg_delisted_adjusted)
+```
+
+# Kable Table Prep
+
+Assuming we want to make the exact same table from the poster, my code should work the same... hopefully
+
+## Making the dataframe for the table 
+
+```{r}
+results_adjusted <- 
+  bind_rows(
+    # Cox
+    extract_cox(cs_model_death_adjusted, "Death / Deterioration"),
+    extract_cox(cs_model_transplant_adjusted, "Transplant"),
+    extract_cox(cs_model_recovery_adjusted, "Recovery"),
+    extract_cox(cs_model_upgrade_adjusted, "Upgraded"),
+    extract_cox(cs_model_downgrade_adjusted, "Downgraded"),
+    extract_cox(cs_model_delisted_adjusted, "Delisted"),
+
+    # Fine Gray !!!
+    
+    # The Death and Recovery Models, due to the problems from before with the 
+    # NA values, are not working here, so I commented them out
+    # When we get them to work, 
+    # You should just be able to uncommented them and get the table
+    
+    # extract_crr(fg_death_adjusted, "Death / Deterioration"), 
+    
+    extract_crr(fg_transplant_adjusted, "Transplant"),
+    
+    # extract_crr(fg_recovery_adjusted, "Recovery"),
+    
+    extract_crr(fg_upgrade_adjusted, "Upgraded"),
+    extract_crr(fg_downgrade_adjusted, "Downgraded"),
+    extract_crr(fg_delisted_adjusted, "Delisted"),
+
+    # Direct Binomial Regression
+    
+    # We're getting the same issue with the NA values here
+    # So death and recovery are commented out
+    # extract_binreg(binreg_death_adjusted, "Death / Deterioration"),
+    
+    extract_binreg(binreg_transplant_adjusted, "Transplant"),
+    
+    # extract_binreg(binreg_recovery_adjusted, "Recovery"),
+    
+    extract_binreg(binreg_upgrade_adjusted, "Upgraded"),
+    extract_binreg(binreg_downgrade_adjusted, "Downgraded"),
+    extract_binreg(binreg_delisted_adjusted, "Delisted")
+  ) |>
+  mutate(
+    Estimate = round(Estimate, 2),
+    CI = paste0("(", round(Lower, 2), " , ", round(Upper, 2), ")"),
+    P  = ifelse(P < 0.001, "P < 0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, Estimate, CI, P)
+
+# results_adjusted$P[6] <- cell_spec(results_adjusted$P[6], color = "#ED907E")
+```
+
+# The Kable Table
+
+```{r}
+kable_table_adjusted <- 
+  results_adjusted |>
+  kable(
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
+                  # we can mess with this to change the title font and size
+    caption = "New Kable Table Unadjusted"
+  ) |>
+  kable_styling(
+    full_width = T,
+    # position = 'left',
+    font_size = 19
+  ) |> 
+  column_spec(1, width = '10em', bold = T, color = "black") |> 
+  column_spec(2:4, width = "7em", bold = T, color = "black") |> 
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 6) |>
+  
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 7, 10) |> ## IMPORTANT!!!
+  # due to issues with Fine Gray right now, the `start_row` and `end_row` values
+  # will need to change
+  
+  pack_rows("Direct Binomial Regression Model (OR*)", 11, 14) ## They'll need to change here to!!!
+```
+
+```{r}
+# Run this if you made changes to the table and want to save it as a png
+
+# sometimes I have problems with `save_kable()` and this usually fixes it, but you need to know where your browser is installed in your device
+
+# Sys.setenv(
+#   CHROMOTE_CHROME =
+#     "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+# )
+
+
+# save_kable(kable_table_adjusted, file = "new_adjusted_results_table.png")
+```
+
+```{r, error = T}
+kable_table_adjusted
+```
+
