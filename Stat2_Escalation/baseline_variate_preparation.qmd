@@ -5,20 +5,6 @@ format: html
 embed-resources: true
 ---
 
-HOPEFULLY... if cleaning stays the same, we should be able to replace `heart3` with what ever dataset we have after finally cleaning.
-
-With that replaced, everything should run and give us our table1, our unadjusted model results, and *eventually* our adjusted model results
-
-There is still some things we'll have to change, the adjusted models do not contain: 
-
--   INIT_AGE
--   ETHCAT_NEW
--   DIAB
--   PRIOR_CARD_SURG_TCR
--   DIAL_AFTER_LIST
-
-I used only Dr. Kawaguchi's binary (0/1) variables in those models, and didn't include the original inital listing at age, they should be there and you can just uncomment them if I remembered to put them there
-
 ## Libraries/Loading
 ```{r setup}
 library(tidyverse) # general tidying and manipulation
@@ -30,153 +16,18 @@ library(survminer)
 library(table1)
 library(cmprsk)
 library(KMsurv)
-
 # d <- readRDS("data/NEW_DATA.rds")
 heart3 <- 
   read_csv("data/heart3.csv")
-analysis_data <-
-  readRDS("data/analysis_data.rds")
+# analysis_data <-
+#   readRDS("data/analysis_data.rds")
 ```
-
-## Renaming/Creating variables in `analysis_data.rds` to work for code
-
-You can't just plug in analysis_data.rds for `heart3.csv` and have it work.
-
-`heart3.csv` has the variables group, time_to_event, event, event_source, and event_date
-
-There are also more observations in `analysis_data.rds` than in `heart3.csv`!!!
-
-### `age_at_status2` 
-
-```{r}
-analysis_data <- 
-  analysis_data |> 
-  mutate(
-    age_at_status2 = 
-      INIT_AGE + as.numeric(STAT2_INIT-INIT_DATE) / 365.25
-  )
-```
-
-```{r}
-summary(analysis_data$age_at_status2)
-summary(heart3$age_at_status2)
-```
-```{r}
-analysis_data |> 
-  select(INIT_STAT, INIT_DATE, STAT2_INIT, INIT_AGE, age_at_status2) |> 
-  head()
-```
-
-
-### `group` and `INIT_STAT2`
-
-There are some differences here that needs to be looked at closer
-
-
-```{r}
-analysis_data |> 
-  count(INIT_STAT2)
-
-heart3 |> 
-  count(group)
-```
-
-
-INIT_STAT2 was coded:
-
-```{r, eval = F, error = T}
-
-dat5 <- dat5 |> 
-  mutate(
-    INIT_STAT2 = case_when(
-      # if you were initially stat2 on your inital date, you are stable (1)
-      INIT_DATE == STAT2_INIT ~ 1, 
-      # if you were weren't stat2 on your inital date, you are escalated (0)
-      INIT_DATE != STAT2_INIT ~ 0,
-    ),
-    ...
-  )
-```
-
-Just a little fix
-
-```{r}
-analysis_data <- 
-analysis_data |> 
-  mutate(
-    group = case_when(
-      INIT_STAT2 == 1 ~ 0,
-      INIT_STAT2 == 0 ~ 1,
-    )
-  )
-```
-
-### `time_to_event` and `FTIME_NEW`
-
-These variables are the same
-
-```{r}
-analysis_data <- 
-analysis_data |> 
-  mutate(
-    time_to_event = FTIME_NEW
-    )
-```
-
-### `event` and `FSTATUS_NEW`
-
-The codes vary slightly.
-
-Censored and Delisted are 6 and 7, respectively, in `heart3.csv`
-
-Censored and Delisted are 0 and 6, respectively, in `analysis_data.rds`
-
-```{r}
-analysis_data <- 
-  analysis_data |> 
-  mutate(
-    event = case_when(
-      FSTATUS_NEW == 0 ~ 6,
-      FSTATUS_NEW == 6 ~ 7,
-      TRUE ~ FSTATUS_NEW
-    )
-  )
-```
-
-
-### `event_source`
-
-Don't know if we really need this one, but it is simple to code 
-
-```{r}
-analysis_data <- 
-  analysis_data |> 
-  mutate(
-    event_source = case_when(
-      event %in% c(1,2,3,6) ~ "removal",
-      event %in% c(4,5,7) ~ "status change"
-    )
-  )
-
-```
-
-### event_date and END_DATE_NEW
-
-```{r}
-analysis_data <- 
-  analysis_data |> 
-  mutate(
-    event_date = END_DATE_NEW
-  )  
-```
-
-
 
 # Baseline Variates
 
 ```{r}
 baseline_variates <- 
-  analysis_data |> 
+  heart3 |> 
   select(WL_ID_CODE,
          INIT_AGE, 
          age_at_status2, 
@@ -196,17 +47,16 @@ baseline_variates <-
          
          group, # stable / escalated variable
          
-         time_to_event, # time and event variables
-         event,         #
-         event_source,  #
-         event_date     #
+         FTIME_NEW, # time and event variables
+         FSTATUS_NEW,         #
+         END_DATE_NEW     #
   ) |> 
   mutate(
     across(
       c(INIT_AGE,
         age_at_status2,
         INIT_BMI_NEW, 
-        time_to_event),
+        FTIME_NEW),
       as.numeric
     ),
     across(
@@ -223,24 +73,24 @@ baseline_variates <-
         ISCH_CARD_Y,
         # DIAL_AFTER_LIST,
         # DIAL_AFTER_LIST_Y,
-        event,
-        event_source),
+        FSTATUS_NEW),
       as.factor
     ),
     group = factor(group,
                    levels = c(0,1),
                    labels = c("Stable", "Escalated")),
-    event_labels = factor(event,
-                   levels = c(1,2,3,4,5,6,7),
+    event_labels = factor(FSTATUS_NEW,
+                   levels = c(1,2,3,4,5,6,0),
                    labels = c("Death/Deterioration",
                               "Transplantation",
                               "Recovery",
                               "Upgrade to Status 1",
                               "Downgrade to Status 3-6",
-                              "Censored",
-                              "Delisted"))
+                              "Delisted",
+                              "Censored"))
   )
-         
+
+write_rds(base)         
 ```
 
 # Demographics
@@ -249,7 +99,7 @@ baseline_variates <-
 
 ```{r}
 baseline_variates |> 
-  group_by(event) |> 
+  group_by(FSTATUS_NEW) |> 
   count()
 ```
 
@@ -383,8 +233,8 @@ table1(
 Very big table (21 columns), probably unncessary
 
 
-```{r}
-# Table of covariates by group AND event
+```{r, eval = F}
+# Table of covariates by group AND FSTATUS_NEW
 table1(
   ~ age_at_status2 +
     INIT_BMI_NEW +
@@ -433,8 +283,8 @@ For the Fine-Gray models
 
 ```{r}
 vars <- c(
-  "time_to_event",
-  "event",
+  "FTIME_NEW",
+  "FSTATUS_NEW",
   "group",
   # "INIT_AGE", ####
   "age_at_status2",
@@ -459,9 +309,6 @@ vars <- c(
 ```{r}
 heart_matrix <- 
   baseline_variates[complete.cases(baseline_variates[, vars]), vars]
-
-# In the heart_matrix, 911 IDs were removed because they contained NA values
-
 ```
 
 
@@ -515,7 +362,7 @@ covariate_matrix_adjusted <-
 cs_model_death_unadjusted <- 
   baseline_variates %>% 
   coxph(
-  Surv(time_to_event, event == 1) ~ 
+  Surv(FTIME_NEW, FSTATUS_NEW == 1) ~ 
     group, 
   data = .
 )
@@ -528,7 +375,7 @@ summary(cs_model_death_unadjusted)
 cs_model_transplant_unadjusted <- 
   baseline_variates %>% 
   coxph(
-    Surv(time_to_event, event == 2) ~ group,
+    Surv(FTIME_NEW, FSTATUS_NEW == 2) ~ group,
     data = .
   ) ; summary(cs_model_transplant_unadjusted)
 
@@ -539,7 +386,7 @@ cs_model_transplant_unadjusted <-
 cs_model_recovery_unadjusted <- 
   baseline_variates %>% 
   coxph(
-    Surv(time_to_event, event == 3) ~ group,
+    Surv(FTIME_NEW, FSTATUS_NEW == 3) ~ group,
     data = .
   ) ; summary(cs_model_recovery_unadjusted)
 ```
@@ -549,7 +396,7 @@ cs_model_recovery_unadjusted <-
 cs_model_upgrade_unadjusted <- 
   baseline_variates %>% 
   coxph(
-    Surv(time_to_event, event == 4) ~ group,
+    Surv(FTIME_NEW, FSTATUS_NEW == 4) ~ group,
     data = .
   ) ; summary(cs_model_upgrade_unadjusted)
 ```
@@ -559,17 +406,17 @@ cs_model_upgrade_unadjusted <-
 cs_model_downgrade_unadjusted <- 
   baseline_variates %>% 
   coxph(
-    Surv(time_to_event, event == 5) ~ group,
+    Surv(FTIME_NEW, FSTATUS_NEW == 5) ~ group,
     data = .
   ) ; summary(cs_model_downgrade_unadjusted)
 ```
 
 ```{r}
-# Cox Model 7: Delisted
+# Cox Model 6: Delisted
 cs_model_delisted_unadjusted <- 
   baseline_variates %>% 
   coxph(
-    Surv(time_to_event, event == 7) ~ group,
+    Surv(FTIME_NEW, FSTATUS_NEW == 6) ~ group,
     data = .
   ) ; summary(cs_model_delisted_unadjusted)
 ```
@@ -581,8 +428,8 @@ cs_model_delisted_unadjusted <-
 ```{r, error = T}
 fg_death_unadjusted <- 
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_unadjusted, 
     failcode = 1
   ) ; summary(fg_death_unadjusted)
@@ -593,8 +440,8 @@ fg_death_unadjusted <-
 ```{r}
 fg_transplant_unadjusted <- 
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_unadjusted, 
     failcode = 2
   ) ; summary(fg_transplant_unadjusted)
@@ -604,8 +451,8 @@ fg_transplant_unadjusted <-
 ```{r, error = T}
 fg_recovery_unadjusted <- 
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_unadjusted,
     failcode = 3
   ) ; summary(fg_recovery_unadjusted)
@@ -616,8 +463,8 @@ fg_recovery_unadjusted <-
 ```{r}
 fg_upgrade_unadjusted <- 
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_unadjusted,
     failcode = 4
   ) ; summary(fg_upgrade_unadjusted)
@@ -628,8 +475,8 @@ fg_upgrade_unadjusted <-
 ```{r}
 fg_downgrade_unadjusted <- 
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_unadjusted,
     failcode = 5
   ) ; summary(fg_downgrade_unadjusted)
@@ -640,12 +487,13 @@ fg_downgrade_unadjusted <-
 ```{r}
 fg_delisted_unadjusted <- 
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_unadjusted,
-    failcode = 7
+    failcode = 6
   ) ; summary(fg_delisted_unadjusted)
 ```
+
 ## Binomial Regression Models
 
 
@@ -660,13 +508,15 @@ options(warn = 1)
 ```{r}
 # Logistic Regression with IPCW Binomial Regression (Unadjusted) (Death)
 
-baseline_variates$CAUSE_DEATH <- ifelse(baseline_variates$event == 1, 1, 0)
+baseline_variates$CAUSE_DEATH <- ifelse(baseline_variates$FSTATUS_NEW == 1, 1, 0)
 
 binreg_death_unadjusted <- binreg(
-  Event(time_to_event, CAUSE_DEATH) ~ group,
+  Event(FTIME_NEW, CAUSE_DEATH) ~ group,
   data = baseline_variates,
-  time = 90 
+  time = 90
 ) ; summary(binreg_death_unadjusted)
+
+
 
 ```
 
@@ -675,10 +525,10 @@ binreg_death_unadjusted <- binreg(
 ```{r}
 # Logistic Regression with IPCW Binomial Regression (Unadjusted) (Transplant)
 
-baseline_variates$CAUSE_T <- ifelse(baseline_variates$event == 2, 1, 0)
+baseline_variates$CAUSE_T <- ifelse(baseline_variates$FSTATUS_NEW == 2, 1, 0)
 
 binreg_transplant_unadjusted <- binreg(
-  Event(time_to_event, CAUSE_T) ~ group,
+  Event(FTIME_NEW, CAUSE_T) ~ group,
   data = baseline_variates,
   time = 90 
 ) ; summary(binreg_transplant_unadjusted)
@@ -689,10 +539,10 @@ binreg_transplant_unadjusted <- binreg(
 ```{r}
 # Logistic Regression with IPCW Binomial Regression (Unadjusted) (Recovery)
 
-baseline_variates$CAUSE_R <- ifelse(baseline_variates$event == 3, 1, 0)
+baseline_variates$CAUSE_R <- ifelse(baseline_variates$FSTATUS_NEW == 3, 1, 0)
 
 binreg_recovery_unadjusted <- binreg(
-  Event(time_to_event, CAUSE_R) ~ group,
+  Event(FTIME_NEW, CAUSE_R) ~ group,
   data = baseline_variates,
   time = 90 
 ) ; summary(binreg_recovery_unadjusted)
@@ -703,10 +553,10 @@ binreg_recovery_unadjusted <- binreg(
 ```{r}
 # Logistic Regression with IPCW Binomial Regression (Unadjusted) ( upgrade)
 
-baseline_variates$CAUSE_U <- ifelse(baseline_variates$event == 4, 1, 0)
+baseline_variates$CAUSE_U <- ifelse(baseline_variates$FSTATUS_NEW == 4, 1, 0)
 
 binreg_upgrade_unadjusted <- binreg(
-  Event(time_to_event, CAUSE_U) ~ group,
+  Event(FTIME_NEW, CAUSE_U) ~ group,
   data = baseline_variates,
   time = 90 
 ) ; summary(binreg_upgrade_unadjusted)
@@ -717,10 +567,10 @@ binreg_upgrade_unadjusted <- binreg(
 ```{r}
 # Logistic Regression with IPCW Binomial Regression (Unadjusted) (downgrade)
 
-baseline_variates$CAUSE_DG <- ifelse(baseline_variates$event == 5, 1, 0)
+baseline_variates$CAUSE_DG <- ifelse(baseline_variates$FSTATUS_NEW == 5, 1, 0)
 
 binreg_downgrade_unadjusted <- binreg(
-  Event(time_to_event, CAUSE_DG) ~ group,
+  Event(FTIME_NEW, CAUSE_DG) ~ group,
   data = baseline_variates,
   time = 90 
 ) ; summary(binreg_downgrade_unadjusted)
@@ -732,10 +582,10 @@ binreg_downgrade_unadjusted <- binreg(
 ```{r}
 # Logistic Regression with IPCW Binomial Regression (Unadjusted) (delisted)
 
-baseline_variates$CAUSE_Dl <- ifelse(baseline_variates$event == 7, 1, 0)
+baseline_variates$CAUSE_Dl <- ifelse(baseline_variates$FSTATUS_NEW == 6, 1, 0)
 
 binreg_delisted_unadjusted <- binreg(
-  Event(time_to_event, CAUSE_Dl) ~ group,
+  Event(FTIME_NEW, CAUSE_Dl) ~ group,
   data = baseline_variates,
   time = 90 
 ) ; summary(binreg_delisted_unadjusted)
@@ -804,26 +654,26 @@ results_unadjusted <-
   bind_rows(
     # Cox
     extract_cox(cs_model_death_unadjusted, "Death / Deterioration"),
-    extract_cox(cs_model_transplant_unadjusted, "Transplant"),
+    extract_cox(cs_model_transplant_unadjusted, "Transplantation"),
     # extract_cox(cs_model_recovery_unadjusted, "Recovery"),
-    extract_cox(cs_model_upgrade_unadjusted, "Upgraded"),
-    extract_cox(cs_model_downgrade_unadjusted, "Downgraded"),
+    extract_cox(cs_model_upgrade_unadjusted, "Upgrade to Status 1"),
+    extract_cox(cs_model_downgrade_unadjusted, "Downgrade to Status 3-6"),
     extract_cox(cs_model_delisted_unadjusted, "Delisted"),
 
     # Fine Gray
     extract_crr(fg_death_unadjusted, "Death / Deterioration"),
-    extract_crr(fg_transplant_unadjusted, "Transplant"),
+    extract_crr(fg_transplant_unadjusted, "Transplantation"),
     # extract_crr(fg_recovery_unadjusted, "Recovery"),
-    extract_crr(fg_upgrade_unadjusted, "Upgraded"),
-    extract_crr(fg_downgrade_unadjusted, "Downgraded"),
+    extract_crr(fg_upgrade_unadjusted, "Upgrade to Status 1"),
+    extract_crr(fg_downgrade_unadjusted, "Downgrade to Status 3-6"),
     extract_crr(fg_delisted_unadjusted, "Delisted"),
 
     # Direct Binomial Regression
     extract_binreg(binreg_death_unadjusted, "Death / Deterioration"),
-    extract_binreg(binreg_transplant_unadjusted, "Transplant"),
+    extract_binreg(binreg_transplant_unadjusted, "Transplantation"),
     # extract_binreg(binreg_recovery_unadjusted, "Recovery"),
-    extract_binreg(binreg_upgrade_unadjusted, "Upgraded"),
-    extract_binreg(binreg_downgrade_unadjusted, "Downgraded"),
+    extract_binreg(binreg_upgrade_unadjusted, "Upgrade to Status 1"),
+    extract_binreg(binreg_downgrade_unadjusted, "Downgrade to Status 3-6"),
     extract_binreg(binreg_delisted_unadjusted, "Delisted")
   ) |>
   mutate(
@@ -872,7 +722,7 @@ kable_table_unadjusted <-
 # )
 
 
-save_kable(kable_table_unadjusted, file = "new_unadjusted_results_table.png")
+save_kable(kable_table_unadjusted, file = "tables/new_unadjusted_results_table.png")
 ```
 
 ```{r, error = T}
@@ -902,14 +752,12 @@ I commented out the "duplicate" variables in case we will need them later in the
 
 ### Death / Deterioration 
 
-ERROR here
-
 ```{r, error = T}
 # Cox Model 1 : Death / Deterioration
 cs_model_death_adjusted <- 
   baseline_variates %>% 
   coxph(
-  Surv(time_to_event, event == 1) ~ 
+  Surv(FTIME_NEW, FSTATUS_NEW == 1) ~ 
     group + 
     # INIT_AGE + 
     age_at_status2 + 
@@ -938,7 +786,7 @@ summary(cs_model_death_adjusted)
 cs_model_transplant_adjusted <- 
   baseline_variates %>% 
   coxph(
-  Surv(time_to_event, event == 2) ~ 
+  Surv(FTIME_NEW, FSTATUS_NEW == 2) ~ 
     group + 
     # INIT_AGE + 
     age_at_status2 + 
@@ -968,7 +816,7 @@ cs_model_transplant_adjusted <-
 cs_model_recovery_adjusted <-
   baseline_variates %>%
   coxph(
-    Surv(time_to_event, event == 3) ~
+    Surv(FTIME_NEW, FSTATUS_NEW == 3) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1003,7 +851,7 @@ summary(cs_model_recovery_adjusted)
 cs_model_upgrade_adjusted <-
   baseline_variates %>%
   coxph(
-    Surv(time_to_event, event == 4) ~
+    Surv(FTIME_NEW, FSTATUS_NEW == 4) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1038,7 +886,7 @@ summary(cs_model_upgrade_adjusted)
 cs_model_downgrade_adjusted <-
   baseline_variates %>%
   coxph(
-    Surv(time_to_event, event == 5) ~
+    Surv(FTIME_NEW, FSTATUS_NEW == 5) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1073,7 +921,7 @@ summary(cs_model_downgrade_adjusted)
 cs_model_delisted_adjusted <-
   baseline_variates %>%
   coxph(
-    Surv(time_to_event, event == 7) ~
+    Surv(FTIME_NEW, FSTATUS_NEW == 6) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1109,8 +957,8 @@ summary(cs_model_delisted_adjusted)
 ```{r, error = T}
 fg_death_adjusted <- 
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_adjusted, 
     failcode = 1
   )
@@ -1122,8 +970,8 @@ summary(fg_death_adjusted)
 ```{r}
 fg_transplant_adjusted <- 
 crr(
-  ftime = heart_matrix$time_to_event,
-  fstatus = heart_matrix$event,
+  ftime = heart_matrix$FTIME_NEW,
+  fstatus = heart_matrix$FSTATUS_NEW,
   cov1 = covariate_matrix_adjusted, 
   failcode = 2
 ) ; summary(fg_transplant_adjusted)
@@ -1135,8 +983,8 @@ crr(
 ```{r, error = T}
 fg_recovery_adjusted <-
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_adjusted,
     failcode = 3
     )
@@ -1150,8 +998,8 @@ summary(fg_recovery_adjusted)
 ```{r}
 fg_upgrade_adjusted <-
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_adjusted,
     failcode = 4
     )
@@ -1165,8 +1013,8 @@ summary(fg_upgrade_adjusted)
 ```{r}
 fg_downgrade_adjusted <-
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_adjusted,
     failcode = 5
   )
@@ -1180,10 +1028,10 @@ summary(fg_downgrade_adjusted)
 ```{r}
 fg_delisted_adjusted <-
   crr(
-    ftime = heart_matrix$time_to_event,
-    fstatus = heart_matrix$event,
+    ftime = heart_matrix$FTIME_NEW,
+    fstatus = heart_matrix$FSTATUS_NEW,
     cov1 = covariate_matrix_adjusted,
-    failcode = 7
+    failcode = 6
   )
 
 summary(fg_delisted_adjusted)
@@ -1191,10 +1039,6 @@ summary(fg_delisted_adjusted)
 
 
 ## Direct Binomial Regression Models
-
-These adjusted models are not working because there are 911 rows where there are `NA` values
-
-I am going to drop the rows for now, but this will mean the Death and Recovery models aren't going to work/exist
 
 ```{r}
 # Dropping na rows
@@ -1207,35 +1051,30 @@ adjusted_binreg_data <- baseline_variates |>
 
 ### Death 
 
-Because of dropping NA values, there are no observations where `event = death`
-
-
 ```{r, error = T}
 binreg_death_adjusted <-
   binreg(
-    Event(time_to_event, CAUSE_DEATH) ~
-      group +
-      # INIT_AGE +
-      age_at_status2 +
-      INIT_BMI_NEW +
+    Event(FTIME_NEW, CAUSE_DEATH) ~
+      group + 
+      # INIT_AGE + 
+      age_at_status2 + 
+      INIT_BMI_NEW + 
       GENDER_NEW +
       # ETHCAT_NEW +
-      
-      ETHCAT2_NEW +
+      ETHCAT2_NEW + 
       BTYPE_REC +
       # DIAB + 
-      
       DIAB_Y +
-      VENTILATOR_TCR +
+      VENTILATOR_TCR + 
       # PRIOR_CARD_SURG_TCR + 
-      
-      PRIOR_CARD_SURG_TCR_Y +
-      ISCH_CARD_Y,
-      # DIAL_AFTER_LIST + 
-      
-      # DIAL_AFTER_LIST_Y,
+      PRIOR_CARD_SURG_TCR_Y + 
+      ISCH_CARD_Y, 
+    # DIAL_AFTER_LIST + 
+    # DIAL_AFTER_LIST_Y,
     data = adjusted_binreg_data,
     time = 90
+    # ,
+    # cens.model = ~strata(group)
   )
 
 summary(binreg_death_adjusted)
@@ -1246,7 +1085,7 @@ summary(binreg_death_adjusted)
 ```{r}
 binreg_transplant_adjusted <-
   binreg(
-    Event(time_to_event, CAUSE_T) ~
+    Event(FTIME_NEW, CAUSE_T) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1277,13 +1116,10 @@ summary(binreg_transplant_adjusted)
 
 ### Recovery 
 
-Because of dropping NA values, there are no observations where `event = recovery`
-
-
 ```{r}
 binreg_recovery_adjusted <-
   binreg(
-    Event(time_to_event, CAUSE_R) ~
+    Event(FTIME_NEW, CAUSE_R) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1318,7 +1154,7 @@ summary(binreg_recovery_adjusted)
 ```{r}
 binreg_upgrade_adjusted <-
   binreg(
-    Event(time_to_event, CAUSE_U) ~
+    Event(FTIME_NEW, CAUSE_U) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1352,7 +1188,7 @@ summary(binreg_upgrade_adjusted)
 ```{r}
 binreg_downgrade_adjusted <-
   binreg(
-    Event(time_to_event, CAUSE_DG) ~
+    Event(FTIME_NEW, CAUSE_DG) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1385,7 +1221,7 @@ summary(binreg_downgrade_adjusted)
 ```{r}
 binreg_delisted_adjusted <-
   binreg(
-    Event(time_to_event, CAUSE_Dl) ~
+    Event(FTIME_NEW, CAUSE_Dl) ~
       group +
       # INIT_AGE +
       age_at_status2 +
@@ -1415,8 +1251,6 @@ summary(binreg_delisted_adjusted)
 
 # Kable Table Prep
 
-Assuming we want to make the exact same table from the poster, my code should work the same... hopefully
-
 ## Making the dataframe for the table 
 
 ```{r}
@@ -1424,26 +1258,26 @@ results_adjusted <-
   bind_rows(
     # Cox
     extract_cox(cs_model_death_adjusted, "Death / Deterioration"),
-    extract_cox(cs_model_transplant_adjusted, "Transplant"),
+    extract_cox(cs_model_transplant_adjusted, "Transplantation"),
     # extract_cox(cs_model_recovery_adjusted, "Recovery"),
-    extract_cox(cs_model_upgrade_adjusted, "Upgraded"),
-    extract_cox(cs_model_downgrade_adjusted, "Downgraded"),
+    extract_cox(cs_model_upgrade_adjusted, "Upgrade to Status 1"),
+    extract_cox(cs_model_downgrade_adjusted, "Downgrade to Status 3-6"),
     extract_cox(cs_model_delisted_adjusted, "Delisted"),
 
     # Fine Gray
     extract_crr(fg_death_adjusted, "Death / Deterioration"),
-    extract_crr(fg_transplant_adjusted, "Transplant"),
+    extract_crr(fg_transplant_adjusted, "Transplantation"),
     # extract_crr(fg_recovery_adjusted, "Recovery"),
-    extract_crr(fg_upgrade_adjusted, "Upgraded"),
-    extract_crr(fg_downgrade_adjusted, "Downgraded"),
+    extract_crr(fg_upgrade_adjusted, "Upgrade to Status 1"),
+    extract_crr(fg_downgrade_adjusted, "Downgrade to Status 3-6"),
     extract_crr(fg_delisted_adjusted, "Delisted"),
 
     # Direct Binomial Regression
     extract_binreg(binreg_death_adjusted, "Death / Deterioration"),
-    extract_binreg(binreg_transplant_adjusted, "Transplant"),
+    extract_binreg(binreg_transplant_adjusted, "Transplantation"),
     # extract_binreg(binreg_recovery_adjusted, "Recovery"),
-    extract_binreg(binreg_upgrade_adjusted, "Upgraded"),
-    extract_binreg(binreg_downgrade_adjusted, "Downgraded"),
+    extract_binreg(binreg_upgrade_adjusted, "Upgrade Status 1"),
+    extract_binreg(binreg_downgrade_adjusted, "Downgrade to Status 3-6"),
     extract_binreg(binreg_delisted_adjusted, "Delisted")
   ) |>
   mutate(
@@ -1486,14 +1320,15 @@ kable_table_adjusted <-
 
 # sometimes I have problems with `save_kable()` and this usually fixes it, but you need to know where your browser is installed in your device
 
-Sys.setenv(
-  CHROMOTE_CHROME =
-    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
-)
-save_kable(kable_table_adjusted, file = "new_adjusted_results_table.png")
+# Sys.setenv(
+#   CHROMOTE_CHROME =
+#     "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+# )
+save_kable(kable_table_adjusted, file = "tables/new_adjusted_results_table.png")
 ```
 
 ```{r, error = T}
 kable_table_adjusted
 ```
+
 
