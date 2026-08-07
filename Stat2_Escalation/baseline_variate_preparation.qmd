@@ -695,7 +695,7 @@ kable_table_unadjusted <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   
-    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 2. Unadjusted Effect Estimates for Waitlist Outcomes</span>",
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 2. Unadjusted Effect Estimates for Waitlist Outcomes at 90 Days</span>",
   ) |> 
   kable_styling(
     full_width = T,
@@ -1054,7 +1054,10 @@ adjusted_binreg_data <- baseline_variates |>
 ```{r, error = T}
 binreg_death_adjusted <-
   binreg(
-    Event(FTIME_NEW, CAUSE_DEATH) ~
+    # even using FSTATUS_NEW == 1 
+    # instead of CAUSE_DEATH, 
+    # I am still getting the issue
+    Event(FTIME_NEW, FSTATUS_NEW == 1) ~
       group + 
       # INIT_AGE + 
       age_at_status2 + 
@@ -1299,7 +1302,7 @@ kable_table_adjusted <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   
-    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 3. Adjusted Effect Estimates for Waitlist Outcomes</span>",
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 3. Adjusted Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
   ) |>
   kable_styling(
     full_width = T,
