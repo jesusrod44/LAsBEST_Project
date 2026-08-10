@@ -6,6 +6,9 @@ embed-resources: true
 ---
 
 ## Libraries/Loading
+
+Depending on what cleaned data set you'd like to use (Dr. Kawaguchi's or ours), make sure it is loaded in and the other one is commented out. 
+
 ```{r setup}
 library(tidyverse) # general tidying and manipulation
 library(readxl) # reading xlsx files
@@ -17,17 +20,57 @@ library(table1)
 library(cmprsk)
 library(KMsurv)
 # d <- readRDS("data/NEW_DATA.rds")
-heart3 <- 
+
+
+# # Our cleaned data
+heart3 <-
   read_csv("data/heart3.csv")
-# analysis_data <-
-#   readRDS("data/analysis_data.rds")
+
+
+
+# # Dr. Kawaguchi's cleaned data
+# analysis_data0 <-
+  # readRDS("data/analysis_data_080726.rds")
+  
+```
+
+## Cleaning in `analysis_data`
+
+This cleans the age_at_status2, group, FSTATUS codes, and 90 day censoring variables and rules in Dr. Kawaguchi's code
+
+If using our `heart3.csv` data, this code will produce an error. 
+
+```{r, error = T}
+analysis_data <- 
+  analysis_data0 |> 
+  mutate(
+    age_at_status2 = 
+      INIT_AGE + (as.numeric(STAT2_INIT - INIT_DATE)) / 365.25,
+    group = 
+      case_when(
+        INIT_STAT2 == 1 ~ 0, # stable
+        INIT_STAT2 == 0 ~ 1  # escalated
+      ),
+    FSTATUS_NEW = 
+      case_when(
+        FTIME_NEW > 90 ~ 0,
+        TRUE ~ FSTATUS_NEW
+      ),
+    FTIME_NEW = 
+      case_when(
+        FTIME_NEW > 90 ~ 90,
+        TRUE ~ FTIME_NEW
+      )
+  ) 
+
 ```
 
 # Baseline Variates
 
 ```{r}
 baseline_variates <- 
-  heart3 |> 
+  heart3 |> # change this dataset to the one you'd like to use
+                   # heart3 or analysis_data
   select(WL_ID_CODE,
          INIT_AGE, 
          age_at_status2, 
@@ -46,6 +89,8 @@ baseline_variates <-
          # DIAL_AFTER_LIST_Y,
          
          group, # stable / escalated variable
+         
+         EXCEPTION, # exception variable
          
          FTIME_NEW, # time and event variables
          FSTATUS_NEW,         #
@@ -80,6 +125,7 @@ baseline_variates <-
                    levels = c(0,1),
                    labels = c("Stable", "Escalated")),
     event_labels = factor(FSTATUS_NEW,
+                          
                    levels = c(1,2,3,4,5,6,0),
                    labels = c("Death/Deterioration",
                               "Transplantation",
@@ -88,9 +134,15 @@ baseline_variates <-
                               "Downgrade to Status 3-6",
                               "Delisted",
                               "Censored"))
+                  # levels = c(1,2,4,5,6,0),
+                  #  labels = c("Death/Deterioration",
+                  #             "Transplantation",
+                  #             "Upgrade to Status 1",
+                  #             "Downgrade to Status 3-6",
+                  #             "Delisted",
+                  #             "Censored"))
   )
 
-write_rds(base)         
 ```
 
 # Demographics
@@ -254,7 +306,6 @@ table1(
 
 ```{r}
 
-# Overall population
 table1(
   ~ age_at_status2 +
     INIT_BMI_NEW +
@@ -448,7 +499,7 @@ fg_transplant_unadjusted <-
 ```
 ### Recovery 
 
-```{r, error = T}
+```{r, eval = F}
 fg_recovery_unadjusted <- 
   crr(
     ftime = heart_matrix$FTIME_NEW,
@@ -485,6 +536,11 @@ fg_downgrade_unadjusted <-
 ### Delisted
 
 ```{r}
+
+heart_matrix |> 
+  count(FSTATUS_NEW)
+
+
 fg_delisted_unadjusted <- 
   crr(
     ftime = heart_matrix$FTIME_NEW,
@@ -495,8 +551,6 @@ fg_delisted_unadjusted <-
 ```
 
 ## Binomial Regression Models
-
-
 
 ```{r}
 library(mets)
@@ -536,7 +590,7 @@ binreg_transplant_unadjusted <- binreg(
 ```
 ### Recovery 
 
-```{r}
+```{r, eval = F}
 # Logistic Regression with IPCW Binomial Regression (Unadjusted) (Recovery)
 
 baseline_variates$CAUSE_R <- ifelse(baseline_variates$FSTATUS_NEW == 3, 1, 0)
@@ -809,9 +863,8 @@ cs_model_transplant_adjusted <-
 
 ### Recovery
 
-!! ERROR
 
-```{r, error = T}
+```{r, error = T, eval = F}
 # Cox Model 3 : Recovery
 cs_model_recovery_adjusted <-
   baseline_variates %>%
@@ -980,7 +1033,7 @@ crr(
 ### Recovery 
 
 
-```{r, error = T}
+```{r, error = T, eval = F}
 fg_recovery_adjusted <-
   crr(
     ftime = heart_matrix$FTIME_NEW,
@@ -1119,7 +1172,7 @@ summary(binreg_transplant_adjusted)
 
 ### Recovery 
 
-```{r}
+```{r, eval = F}
 binreg_recovery_adjusted <-
   binreg(
     Event(FTIME_NEW, CAUSE_R) ~

@@ -1,0 +1,926 @@
+---
+title: "Functionally Programming Fitting and Extracting Models"
+author: "Jesus Rodriguez" 
+format: html
+embed-resources: true
+---
+
+The purpose of this quarto doc is to find a way to 'programmatically functionize' a way to run the models, know when there is an error with a model (like how we've had some outcomes with a variable where it is all NA), extract the information we need from the models and if an error occurred with the model then the info extract is just NA. 
+
+All so that the kable tables created can be ran and if a model had issues, it will say NA on the table, so we know what outcome to take a deeper look into.
+
+Hopefully this also makes the code more efficient because it takes a long time for my laptop to render the `baseline_variate_preparation.qmd` file
+
+I have not yet updated any descriptive statistics tables here. 
+
+::: {.callout-tip}
+
+You should only have to do three things.
+
+1. Make sure the data you want to load in is loaded in the setup chunk.
+2. In the Baseline Variates section, make sure the data you loaded in is being called in the `baseline_variates` pipeline
+3. If you are using the `heart3.csv` data as of 08/09/2026, make sure to comment out the EXCEPTION variable in the same `baseline_variates` pipeline from before.
+
+The reason being is because to keep things streamlined, I removed rows with NA values in the data so each model runs the same data. The EXCEPTION variable in our data has over 8000 missing values. 
+
+In Dr. Kawaguchi's data, the missing values are fixed, BUT the outcome: Delisted is now gone from our analysis 
+
+I haven't yet included EXCEPTION in any of the models, so I *should* have EXCEPTION commented out already 
+:::
+
+::: {.callout-important}
+
+IMPORTANT!
+
+When using Dr. K's data, the direct binomial regression models agree with each other, so maybe that issue is related to the differences in our data rather than binreg(). 
+
+When comparing the datasets, Dr. K's data contained 0 observatiosn classified as "Delisted", whereas our data contained about ~1000 candidates classified as "Delisted".
+
+Also, when comparing candidates present in both datasets, there are ~1250 IDs with different `FSTATUS_NEW` codes. 
+
+~`WL_ID_CODE == 1497112` is classified as "Delisted" in heart3.csv, but "Downgraded" in `analysis_data_080726.rds`
+
+In `NEW_DATA.rds`, there are observations for candidate that say 2999 where they do not appear so in Dr. K's `INIT_DATA_080726`, and it is causing the `CHG_DATE` and `UNOS_CAND_STAT_CD` to be different in the final cleaned datasets `heart3.csv` and `analysis_data_080726.rds` 
+
+I did this comparison in `debugging.qmd`, but you'll need to have `escalation_data_prep_1.R`, `side_cleaning.R`, and `side_analysis.qmd` open to load the data step by step
+
+:::
+
+
+## Libraries/Loading
+
+::: {.callout-important}
+Depending on what cleaned data set you'd like to use (Dr. Kawaguchi's or ours), make sure it is loaded in and the other one is commented out. You'll also have to make sure your wanted data set is being called in the `Baseline Variates` section  
+:::
+
+::: {.callout-important}
+08/09/2026
+
+If using `analysis_data_080726.rds` when you ran the code, the Delisted (or downgraded to unknown status) does not exist
+
+So these models are gonna have issues right now
+:::
+
+```{r setup, message = F, warning = F, output = F}
+library(tidyverse) # general tidying and manipulation
+library(readxl) # reading xlsx files
+library(kableExtra) # nice tables
+library(lubridate) # easier working with dates
+library(survival)
+library(survminer)
+library(table1)
+library(cmprsk)
+library(KMsurv)
+library(mets)
+options(warn = 1)
+
+# 1. Make sure the data you want to load in is loaded in the setup chunk.
+
+# # Our cleaned data
+heart3 <-
+  read_csv("data/heart3.csv")
+
+# Dr. Kawaguchi's cleaned data
+# analysis_data0 <-
+#   readRDS("data/analysis_data_080726.rds")
+  
+```
+
+## Cleaning in `analysis_data`
+
+This cleans the age_at_status2, group, FSTATUS codes, and 90 day censoring variables and rules in Dr. Kawaguchi's code
+
+If using our `heart3.csv` data, this code will produce an error. 
+
+```{r, error = T}
+analysis_data <- 
+  analysis_data0 |> 
+  mutate(
+    age_at_status2 = 
+      INIT_AGE + (as.numeric(STAT2_INIT - INIT_DATE)) / 365.25,
+    group = 
+      case_when(
+        INIT_STAT2 == 1 ~ 0, # stable
+        INIT_STAT2 == 0 ~ 1  # escalated
+      ),
+    FSTATUS_NEW = 
+      case_when(
+        FTIME_NEW > 90 ~ 0,
+        TRUE ~ FSTATUS_NEW
+      ),
+    FTIME_NEW = 
+      case_when(
+        FTIME_NEW > 90 ~ 90,
+        TRUE ~ FTIME_NEW
+      )
+  ) 
+
+```
+
+# Baseline Variates
+
+```{r}
+baseline_variates <- 
+  # 2. In the Baseline Variates section, make sure the data you loaded in is being called in the `baseline_variates` pipeline
+  
+  heart3 |> # change this dataset to the one you'd like to use
+                   # heart3 or analysis_data
+  
+  
+  select(WL_ID_CODE,
+         INIT_AGE, 
+         age_at_status2, 
+         GENDER_NEW,
+         INIT_BMI_NEW,
+         ETHCAT_NEW,
+         ETHCAT2_NEW,
+         BTYPE_REC,
+         DIAB,     
+         DIAB_Y,   
+         VENTILATOR_TCR,
+         PRIOR_CARD_SURG_TCR,
+         PRIOR_CARD_SURG_TCR_Y,
+         ISCH_CARD_Y,
+         # DIAL_AFTER_LIST,
+         # DIAL_AFTER_LIST_Y,
+         
+         group, # stable / escalated variable
+         
+         
+         # 3. If you are using the `heart3.csv` data as of 08/09/2026, 
+         # make sure to comment out the EXCEPTION variable in the 
+         # same `baseline_variates` pipeline from before.
+         
+         # EXCEPTION, # <- <- <- exception variable
+         
+         FTIME_NEW, # time and event variables
+         FSTATUS_NEW,         #
+         END_DATE_NEW     #
+  ) |> 
+  mutate(
+    across(
+      c(INIT_AGE,
+        age_at_status2,
+        INIT_BMI_NEW, 
+        FTIME_NEW),
+      as.numeric
+    ),
+    across(
+      c(WL_ID_CODE,
+        GENDER_NEW,
+        ETHCAT_NEW,
+        ETHCAT2_NEW,
+        BTYPE_REC,
+        DIAB,
+        DIAB_Y,
+        VENTILATOR_TCR,
+        PRIOR_CARD_SURG_TCR,
+        PRIOR_CARD_SURG_TCR_Y,
+        ISCH_CARD_Y,
+        # DIAL_AFTER_LIST,
+        # DIAL_AFTER_LIST_Y,
+        FSTATUS_NEW),
+      as.factor
+    ),
+    group = factor(group,
+                   levels = c(0,1),
+                   labels = c("Stable", "Escalated")),
+    event_labels = factor(FSTATUS_NEW,
+                          
+                   levels = c(1,2,3,4,5,6,0),
+                   labels = c("Death/Deterioration",
+                              "Transplantation",
+                              "Recovery",
+                              "Upgrade to Status 1",
+                              "Downgrade to Status 3-6",
+                              "Delisted",
+                              "Censored"))
+  )
+
+```
+
+# Baseline Variates with No NA values in any rows
+
+For the sake of simplicity, I am gonna have all the models run on complete data
+
+This is just so each model is using the same data as the others
+
+```{r}
+baseline_variates_no_NA <- 
+  baseline_variates |> 
+  drop_na()
+```
+
+## NAs in FSTATUS_NEW Exploration
+
+```{r}
+FSTATUS_NAs <- baseline_variates |> 
+  count(FSTATUS_NEW, name = "n_before") |> 
+  full_join(
+    baseline_variates_no_NA |> 
+      count(FSTATUS_NEW, name = "n_after"),
+    by = "FSTATUS_NEW"
+  ) |> 
+  mutate(
+    n_before = replace_na(n_before, 0),
+    n_after = replace_na(n_after, 0),
+    n_removed = n_before - n_after,
+    percent_removed = 100 * n_removed / n_before
+  ) |> 
+  bind_rows(
+    data.frame(
+      FSTATUS_NEW = "Overall",
+      n_before = nrow(baseline_variates),
+      n_after = nrow(baseline_variates_no_NA),
+      n_removed = nrow(baseline_variates) - nrow(baseline_variates_no_NA),
+      percent_removed = 100 * (
+        nrow(baseline_variates) - nrow(baseline_variates_no_NA)
+      ) / nrow(baseline_variates)
+    )
+  )
+
+FSTATUS_NAs
+```
+
+# Defining Variables for Models
+
+The `adjusted_variables` are the variables that will be in the formula for the ADJUSTED Cox and Direct Binomial Regression models 
+
+Their adjusted formulas look like this: 
+
+```
+"Surv(FTIME_NEW, cause) ~ group +",
+          age_at_status2 + GENDER_NEW + ...
+```
+
+While their unadjusted formulas won't need these variables: 
+
+```
+Surv(FTIME_NEW, cause) ~ group,
+```
+
+
+```{r}
+adjusted_variables <- c(
+  # 'INIT_AGE' , 
+  'age_at_status2' ,  # updated age adjusted to landmark
+  'GENDER_NEW' ,
+  'INIT_BMI_NEW' ,
+  # 'ETHCAT_NEW' , 
+  'ETHCAT2_NEW' ,     # simplified ethnicity var
+  'BTYPE_REC' ,
+  # 'DIAB' , 
+  'DIAB_Y' ,   # yes/no diabetes indicator 
+  'VENTILATOR_TCR' ,
+  # 'PRIOR_CARD_SURG_TCR' , 
+  'PRIOR_CARD_SURG_TCR_Y' ,  # binary indicator
+  'ISCH_CARD_Y'
+)
+```
+
+The `competing_risks` variable is just a lookup table to loop each of the outcomes functionally
+
+```{r}
+competing_risks <- 
+  data.frame(
+    outcome = c(
+      "Death / Deterioration",
+      "Transplantation",
+      "Upgrade to Status 1", 
+      "Downgrade to Status 3-6",
+      "Delisted"
+    ), 
+    code = c(1,2,4,5,6)
+  )
+```
+
+
+In the `..._models` list variable, it'll look like: 
+
+Unadjusted
+
+-   [[1]]
+-   ...
+-   [[5]]
+
+Adjusted
+
+-   [[1]]
+-   ...
+-   [[5]]
+
+The `[[]]` will contain the following outcomes in this order, just like how it is listed in the `competing_risks` variable:
+
+-   [[1]] = Death/Deterioration
+-   [[2]] = Transplantation
+-   [[3]] = Upgrade to Status 1
+-   [[4]] = Downgrade to Status 3-6
+-   [[5]] = Delisted
+
+
+
+# Cox Model Functions 
+
+## Cox Formula 
+
+```{r}
+make_cox_formula <- 
+  function(adjusted = F) { 
+    
+    if (adjusted == T) {
+      as.formula(
+        paste(
+          "Surv(FTIME_NEW, cause) ~ group +",
+          paste(adjusted_variables, collapse = "+")
+        )
+      )
+    } else {
+      Surv(FTIME_NEW, cause) ~ group
+    }
+  }
+```
+
+## Fit Cox Model
+
+```{r}
+fit_cox_model <- 
+  function(data, event_code, adjusted = F) {
+    
+    outcome_name <- 
+      competing_risks$outcome[
+        competing_risks$code == event_code
+      ]
+    
+    data <- data |> 
+      mutate(
+        cause = as.integer(FSTATUS_NEW == event_code)
+      )
+    
+    formula <- make_cox_formula(adjusted)
+    
+    tryCatch(
+      withCallingHandlers(
+      
+      
+      coxph(
+        formula, 
+        data = data
+      ),
+      
+      warning = function(w) {
+        message(
+          "Cox model ran into warning for outcome ",
+          event_code,
+          if (adjusted == T) " (adjusted)" else " (unadjusted)",
+          ": ",
+          conditionMessage(w)
+        )
+      }
+      ),
+      
+      error = function(e) {
+        message(
+          "Cox model failed for outcome ",
+          event_code,
+          if (adjusted == T) " (adjusted)" else " (unadjusted)",
+          ": ",
+          conditionMessage(e)
+          
+        )
+        NULL
+      }
+      
+    )
+  }
+```
+
+### Run Cox Models
+
+```{r}
+cox_models <- list(
+  Unadjusted = 
+    map(
+      competing_risks$code,
+      ~ fit_cox_model(
+        data = baseline_variates_no_NA, 
+        event_code = .x, 
+        adjusted = F
+      ) 
+  ),
+  Adjusted = map(
+    competing_risks$code,
+    ~ fit_cox_model(
+      data = baseline_variates_no_NA,
+      event_code = .x,
+      adjusted = T
+    )
+  )
+)
+```
+
+Death
+
+```{r, eval = F}
+summary(cox_models$Unadjusted[[1]]) 
+summary(cox_models$Adjusted[[1]])
+```
+
+Delisted 
+
+```{r, eval = F}
+summary(cox_models$Unadjusted[[5]])
+summary(cox_models$Adjusted[[5]])
+```
+
+
+
+
+# Fine-Gray Model Functions
+
+```{r}
+fit_fg_model <- 
+  function(data, event_code, adjusted = F) {
+    
+    tryCatch({
+      
+      if (adjusted) {
+        
+        covariate_matrix <- model.matrix(
+          as.formula(
+            paste(
+              "~ group +",
+              paste(adjusted_variables, collapse = " + ")
+            )
+          ),
+          data = data
+        )[, -1, drop = T]
+        
+      } else {
+        
+        covariate_matrix <- model.matrix(
+          ~ group,
+          data = data
+        )[, -1, drop = F]
+        
+      }
+      
+      crr(
+        ftime = data$FTIME_NEW,
+        fstatus = data$FSTATUS_NEW,
+        cov1 = covariate_matrix,
+        failcode = event_code
+      )
+      
+    }, error = function(e) {
+      
+      message(
+        "Fine-Gray model failed for outcome",
+        event_code,
+        if (adjusted) " (adjusted)" else " (unadjusted)",
+        ": ",
+        e$message
+      )
+      
+      NULL
+    })
+  }
+```
+
+## Run Fine-Gray Models
+
+```{r}
+fg_models <- 
+  list(
+    Unadjusted = 
+      map(
+        competing_risks$code,
+        ~ fit_fg_model(
+          data = baseline_variates_no_NA,
+          event_code = .x,
+          adjusted = F
+        )
+      ),
+    Adjusted = 
+      map(
+        competing_risks$code,
+        ~ fit_fg_model(
+          data = baseline_variates_no_NA,
+          event_code = .x,
+          adjusted = T
+        ) 
+      )
+  )
+```
+
+Checking to see the summary of the transplantation models for Fine-Gray
+
+```{r, eval = F}
+
+summary(fg_models$Unadjusted[[2]])
+summary(fg_models$Adjusted[[2]])
+
+```
+
+```{r, eval = F}
+# Delisted
+summary(fg_models$Unadjusted[[5]])
+summary(fg_models$Adjusted[[5]])
+
+```
+# Direct Binomial Regression Model Functions
+
+## DBR Formula
+
+```{r}
+make_binreg_formula <- 
+  function(adjusted = F) { 
+    
+    if (adjusted == T) {
+      as.formula(
+        paste(
+          "Event(FTIME_NEW, cause) ~ group +",
+          paste(adjusted_variables, collapse = "+")
+        )
+      )
+    } else {
+      Event(FTIME_NEW, cause) ~ group
+    }
+  }
+```
+
+## Fit DBR Model
+
+```{r}
+fit_binreg_model <- 
+  function(data, event_code, adjusted = F, time = 90) {
+    
+    outcome_name <- 
+      competing_risks$outcome[
+        competing_risks$code == event_code
+      ]
+    
+    data <- data |> 
+      mutate(
+        cause = as.integer(FSTATUS_NEW == event_code)
+      )
+    
+    formula <- make_binreg_formula(adjusted)
+    
+    tryCatch(
+      withCallingHandlers(
+        
+      binreg(
+        formula, 
+        data = data,
+        time = time
+      ),
+      
+      warning = function(w) {
+        message(
+            "DBR model ran into warning for ",
+            outcome_name,
+            if (adjusted) " (adjusted)" else " (unadjusted)",
+            ": ",
+            conditionMessage(w)
+        )
+      }
+      ),
+      error = function(e) {
+        message(
+          "DBR model failed for outcome ",
+          outcome_name,
+          if (adjusted) "(adjusted)" else "(unadjusted)", 
+          ": ",
+          conditionMessage(e)
+        )
+        NULL
+      }
+    )
+  }
+```
+
+### Rrun DBR Models
+
+```{r}
+binreg_models <- 
+  list(
+    Unadjusted = 
+      map(
+        competing_risks$code,
+        ~ fit_binreg_model(
+          data = baseline_variates_no_NA,
+          event_code = .x,
+          adjusted = F
+        )
+      ),
+    Adjusted = 
+      map(
+        competing_risks$code,
+        ~ fit_binreg_model(
+          data = baseline_variates_no_NA,
+          event_code = .x,
+          adjusted = T
+        )
+      )
+  )
+```
+
+Checking Transplantation and Delisted again 
+
+```{r, eval = F}
+summary(binreg_models$Unadjusted[[1]])
+summary(binreg_models$Adjusted[[1]])
+```
+
+```{r, eval = F}
+summary(binreg_models$Unadjusted[[5]])
+summary(binreg_models$Adjusted[[5]])
+```
+
+# Extracting information from models for Kable Tables
+
+
+
+## Cox info extraction
+
+```{r}
+# Extract from coxph model
+
+extract_cox <- function(model, outcome, adjustment) {
+  
+  # an error occurred with the model, have NA values
+  # fill in the values
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Cause-Specific Cox",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    # if model exists extract its info
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Cause-Specific Cox",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$conf.int[1, "exp(coef)"],
+      Lower    = s$conf.int[1, "lower .95"],
+      Upper    = s$conf.int[1, "upper .95"],
+      P        = s$coefficients[1, "Pr(>|z|)"]
+    )
+    
+    
+     # if an error occurs while extract info from model,
+     # make things NA
+  }, error = function(e) {
+    data.frame(
+      Model = "Cause-Specific Cox",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  }) 
+}
+```
+
+
+## Fine-Gray extraction
+
+```{r}
+extract_fg <- function(model, outcome, adjustment) {
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Fine-Gray Subdistribution",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Fine-Gray Subdistribution",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$conf.int[1, "exp(coef)"],
+      Lower = s$conf.int[1, "2.5%"],
+      Upper = s$conf.int[1, "97.5%"],
+      P = s$coef[1, "p-value"]
+    )
+  }, error = function(e) {
+    data.frame(
+      Model = "Fine-Gray Subdistribution",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  })
+}
+```
+
+## DBR extraction
+
+```{r}
+extract_binreg <- function(model, outcome, adjustment) {
+  
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Direct Binomial Regression",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Direct Binomial Regression",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$exp[2, "Estimate"],
+      Lower = s$exp[2, "2.5%"],
+      Upper = s$exp[2, "97.5%"],
+      P = s$coef[2, "P-value"]
+    )
+    
+  }, error = function(e) {
+    
+    data.frame(
+      Model = "Direct Binomial Regression",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  })
+}
+```
+
+# Making the dataframes for the tables
+
+`unadjusted_results` contains the unadjusted results ...
+
+```{r}
+unadjusted_results <- 
+  bind_rows(
+    
+    map2_dfr(
+      cox_models$Unadjusted,
+      competing_risks$outcome,
+      ~ extract_cox(.x, .y, "Unadjusted")
+    ),
+    
+    map2_dfr(
+      fg_models$Unadjusted,
+      competing_risks$outcome,
+      ~ extract_fg(.x, .y, "Unadjusted")
+    ),
+    
+    map2_dfr(
+      binreg_models$Unadjusted,
+      competing_risks$outcome,
+      ~extract_binreg(.x, .y, "Unadjusted")
+    )
+  )
+```
+
+`adjusted_results`
+
+```{r}
+adjusted_results <- 
+  bind_rows(
+    # Cox Model info
+    map2_dfr(
+      cox_models$Adjusted,
+      competing_risks$outcome,
+      ~ extract_cox(.x, .y, "Adjusted")
+    ),
+    # Fine-Gray Model info
+    map2_dfr(
+      fg_models$Adjusted,
+      competing_risks$outcome,
+      ~ extract_fg(.x, .y, "Adjusted")
+    ),
+    # DBR Model info
+    map2_dfr(
+      binreg_models$Adjusted,
+      competing_risks$outcome,
+      ~extract_binreg(.x, .y, "Adjusted")
+    )
+  )
+```
+
+# Kable Table Making
+
+## Unadjusted Kable
+
+```{r}
+kable_table_unadjusted <- 
+  unadjusted_results |>
+  mutate(
+    Estimate = round(Estimate, 3),
+    CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
+    P  = ifelse(P < 0.001, "p < 0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, Estimate, CI, P) |>
+   kable(
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
+                  
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 2. Unadjusted Effect Estimates for Waitlist Outcomes at 90 Days</span>",
+  ) |> 
+  kable_styling(
+    full_width = T,
+    # position = 'left',
+    font_size = 19
+  ) |> 
+  column_spec(1, width = '10em', bold = T, color = "black") |> 
+  column_spec(2:4, width = "7em", bold = F, color = "black") |> 
+  
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
+  
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) |> 
+  pack_rows("Direct Binomial Regression Model (OR*)", 11, 15)
+```
+
+## Adjusted Kable
+
+```{r}
+kable_table_adjusted <- 
+  adjusted_results |>
+  mutate(
+    Estimate = round(Estimate, 3),
+    CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
+    P  = ifelse(P < 0.001, "p < 0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, Estimate, CI, P) |>
+  kable(
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
+                  
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 3. Adjusted Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
+  ) |>
+  kable_styling(
+    full_width = T,
+    position = 'left',
+    font_size = 19
+  ) |> 
+  column_spec(1, bold = T, color = "black") |> 
+  column_spec(2:4, bold = F, color = "black") |> 
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
+  
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) |> 
+  
+  pack_rows("Direct Binomial Regression Model (OR*)", 11, 15) 
+```
+
+## Show and Save Kables
+
+```{r}
+kable_table_unadjusted
+kable_table_adjusted
+```
+
+
+```{r}
+save_kable(kable_table_unadjusted, file = "tables/new_unadjusted_results_table_DRAFT.png")
+save_kable(kable_table_adjusted, file = "tables/new_adjusted_results_table_DRAFT.png")
+```
+
+
+

@@ -1,0 +1,488 @@
+---
+title: "debugging"
+author: "Jesus Rodriguez"
+format: html
+embed-resources: true
+---
+
+::: {.callout-important}
+
+When using Dr. K's data, the direct binomial regression models agree with each other, so maybe that issue is related to the differences in our data rather than binreg(). 
+
+When comparing the datasets, Dr. K's data contained 0 observatiosn classified as "Delisted", whereas our data contained about ~1000 candidates classified as "Delisted".
+
+Also, when comparing candidates present in both datasets, there are ~1250 IDs with different `FSTATUS_NEW` codes. 
+
+~`WL_ID_CODE == 1497112` is classified as "Delisted" in heart3.csv, but "Downgraded" in `analysis_data_080726.rds`
+
+In `NEW_DATA.rds`, there are observations for candidate that say 2999 where they do not appear so in Dr. K's `INIT_DATA_080726`, and it is causing the `CHG_DATE` and `UNOS_CAND_STAT_CD` to be different in the final cleaned datasets `heart3.csv` and `analysis_data_080726.rds` 
+
+:::
+
+
+
+# DDD - Direct Binomial (Regression) Debugging
+
+When using Dr. K's data, the DBR models agree with each other, so maybe there's something up with our data?
+
+## Libraries/Loading
+
+```{r setup, message = F, warning = F, output = F}
+library(tidyverse) # general tidying and manipulation
+library(readxl) # reading xlsx files
+library(kableExtra) # nice tables
+library(lubridate) # easier working with dates
+library(survival)
+library(survminer)
+library(table1)
+library(cmprsk)
+library(KMsurv)
+library(mets)
+options(warn = 1)
+
+# 1. Make sure the data you want to load in is loaded in the setup chunk.
+
+# # Our cleaned data 08/09/2026
+heart3 <-
+  read_csv("data/heart3.csv")
+
+# Dr. Kawaguchi's cleaned data 08/09/2026
+analysis_data0 <-
+  readRDS("data/analysis_data_080726.rds")
+
+
+# messy data
+
+d <- readRDS("data/NEW_DATA.rds")
+
+dat.0 <- readRDS(file = "data/INIT_DATA_080726.rds")
+
+
+
+
+
+
+  
+```
+
+## Cleaning in `analysis_data`
+
+This cleans the age_at_status2, group, FSTATUS codes, and 90 day censoring variables and rules in Dr. Kawaguchi's code
+
+If using our `heart3.csv` data, this code will produce an error. 
+
+```{r, error = T}
+analysis_data <- 
+  analysis_data0 |> 
+  mutate(
+    age_at_status2 = 
+      INIT_AGE + (as.numeric(STAT2_INIT - INIT_DATE)) / 365.25,
+    group = 
+      case_when(
+        INIT_STAT2 == 1 ~ 0, # stable
+        INIT_STAT2 == 0 ~ 1  # escalated
+      ),
+    FSTATUS_NEW = 
+      case_when(
+        FTIME_NEW > 90 ~ 0,
+        TRUE ~ FSTATUS_NEW
+      ),
+    FTIME_NEW = 
+      case_when(
+        FTIME_NEW > 90 ~ 90,
+        TRUE ~ FTIME_NEW
+      )
+  ) 
+
+```
+
+# Baseline Variates
+
+```{r}
+baseline_variates <- 
+  # 2. In the Baseline Variates section, make sure the data you loaded in is being called in the `baseline_variates` pipeline
+  
+  heart3 |> # change this dataset to the one you'd like to use
+                   # heart3 or analysis_data
+  
+  
+  select(WL_ID_CODE,
+         INIT_AGE, 
+         age_at_status2, 
+         GENDER_NEW,
+         INIT_BMI_NEW,
+         ETHCAT_NEW,
+         ETHCAT2_NEW,
+         BTYPE_REC,
+         DIAB,     # THERE ARE FOUR `Diabetes Status Unknown` obs in `DIAB`
+         DIAB_Y,   # DR. KAWAGUCHI seemed to set them as NOT HAVING DIABETES
+         VENTILATOR_TCR,
+         PRIOR_CARD_SURG_TCR,
+         PRIOR_CARD_SURG_TCR_Y,
+         ISCH_CARD_Y,
+         # DIAL_AFTER_LIST,
+         # DIAL_AFTER_LIST_Y,
+         
+         group, # stable / escalated variable
+         
+         
+         # 3. If you are using the `heart3.csv` data as of 08/09/2026, 
+         # make sure to comment out the EXCEPTION variable in the 
+         # same `baseline_variates` pipeline from before.
+         
+         # EXCEPTION, # <- <- <- exception variable
+         
+         FTIME_NEW, # time and event variables
+         FSTATUS_NEW,         #
+         END_DATE_NEW     #
+  ) |> 
+  mutate(
+    across(
+      c(INIT_AGE,
+        age_at_status2,
+        INIT_BMI_NEW, 
+        FTIME_NEW),
+      as.numeric
+    ),
+    across(
+      c(WL_ID_CODE,
+        GENDER_NEW,
+        ETHCAT_NEW,
+        ETHCAT2_NEW,
+        BTYPE_REC,
+        DIAB,
+        DIAB_Y,
+        VENTILATOR_TCR,
+        PRIOR_CARD_SURG_TCR,
+        PRIOR_CARD_SURG_TCR_Y,
+        ISCH_CARD_Y,
+        # DIAL_AFTER_LIST,
+        # DIAL_AFTER_LIST_Y,
+        FSTATUS_NEW),
+      as.factor
+    ),
+    group = factor(group,
+                   levels = c(0,1),
+                   labels = c("Stable", "Escalated")),
+    event_labels = factor(FSTATUS_NEW,
+                          
+                   levels = c(1,2,3,4,5,6,0),
+                   labels = c("Death/Deterioration",
+                              "Transplantation",
+                              "Recovery",
+                              "Upgrade to Status 1",
+                              "Downgrade to Status 3-6",
+                              "Delisted",
+                              "Censored"))
+  )
+
+```
+
+
+
+
+
+# Dr. K's baseline_variates
+
+```{r}
+baseline_variates_drK <- 
+  # 2. In the Baseline Variates section, make sure the data you loaded in is being called in the `baseline_variates` pipeline
+  
+  analysis_data |> # change this dataset to the one you'd like to use
+                   # heart3 or analysis_data
+  
+  
+  select(WL_ID_CODE,
+         INIT_AGE, 
+         age_at_status2, 
+         GENDER_NEW,
+         INIT_BMI_NEW,
+         ETHCAT_NEW,
+         ETHCAT2_NEW,
+         BTYPE_REC,
+         DIAB,     # THERE ARE FOUR `Diabetes Status Unknown` obs in `DIAB`
+         DIAB_Y,   # DR. KAWAGUCHI seemed to set them as NOT HAVING DIABETES
+         VENTILATOR_TCR,
+         PRIOR_CARD_SURG_TCR,
+         PRIOR_CARD_SURG_TCR_Y,
+         ISCH_CARD_Y,
+         # DIAL_AFTER_LIST,
+         # DIAL_AFTER_LIST_Y,
+         
+         group, # stable / escalated variable
+         
+         
+         # 3. If you are using the `heart3.csv` data as of 08/09/2026, 
+         # make sure to comment out the EXCEPTION variable in the 
+         # same `baseline_variates` pipeline from before.
+         
+         # EXCEPTION, # <- <- <- exception variable
+         
+         FTIME_NEW, # time and event variables
+         FSTATUS_NEW,         #
+         END_DATE_NEW     #
+  ) |> 
+  mutate(
+    across(
+      c(INIT_AGE,
+        age_at_status2,
+        INIT_BMI_NEW, 
+        FTIME_NEW),
+      as.numeric
+    ),
+    across(
+      c(WL_ID_CODE,
+        GENDER_NEW,
+        ETHCAT_NEW,
+        ETHCAT2_NEW,
+        BTYPE_REC,
+        DIAB,
+        DIAB_Y,
+        VENTILATOR_TCR,
+        PRIOR_CARD_SURG_TCR,
+        PRIOR_CARD_SURG_TCR_Y,
+        ISCH_CARD_Y,
+        # DIAL_AFTER_LIST,
+        # DIAL_AFTER_LIST_Y,
+        FSTATUS_NEW),
+      as.factor
+    ),
+    group = factor(group,
+                   levels = c(0,1),
+                   labels = c("Stable", "Escalated")),
+    event_labels = factor(FSTATUS_NEW,
+                          
+                   levels = c(1,2,3,4,5,6,0),
+                   labels = c("Death/Deterioration",
+                              "Transplantation",
+                              "Recovery",
+                              "Upgrade to Status 1",
+                              "Downgrade to Status 3-6",
+                              "Delisted",
+                              "Censored"))
+  )
+```
+
+# Checks
+
+## NAs in both dataset comparisons by FSTATUS_NEW
+
+```{r}
+fstatus_comparison <- full_join(
+  baseline_variates |> 
+    count(FSTATUS_NEW, name = "n_heart3"),
+  baseline_variates_drK |> 
+    count(FSTATUS_NEW, name = "n_analysis_data"),
+  by = "FSTATUS_NEW"
+) |> 
+  mutate(
+    n_heart3 = replace_na(n_heart3, 0),
+    n_analysis_data = replace_na(n_analysis_data, 0),
+    difference = n_heart3 - n_analysis_data
+  ) |> 
+  arrange(FSTATUS_NEW)
+
+fstatus_comparison
+```
+
+This shows that there are 0 "Delisted" candidates in Dr. K's data
+
+The following code checks to see if there are any IDs that match with each other in both datasets, but do not have the same FSTATUS_NEW code
+
+```{r}
+fstatus_differences <- 
+  baseline_variates |> 
+  select(WL_ID_CODE, FSTATUS_NEW) |> 
+  mutate(FSTATUS_NEW = as.character(FSTATUS_NEW)) |> 
+  # need as.character because Dr. K has no factor level of 
+  # 6 because no one is delisted in his data
+  
+  rename(FSTATUS_heart3 = FSTATUS_NEW) |> 
+  inner_join(
+    baseline_variates_drK |> 
+      select(WL_ID_CODE, FSTATUS_NEW) |> 
+      mutate(FSTATUS_NEW = as.character(FSTATUS_NEW)) |> 
+      rename(FSTATUS_analysis_data = FSTATUS_NEW),
+    by = "WL_ID_CODE"
+  ) |> 
+  filter(
+    FSTATUS_heart3 != FSTATUS_analysis_data |
+      is.na(FSTATUS_heart3) != is.na(FSTATUS_analysis_data)
+  )
+
+fstatus_differences
+```
+
+There are over 1000 IDs that do not have the same FSTATUS_NEW code
+
+
+```{r}
+fstatus_differences |> 
+  count(FSTATUS_heart3)
+```
+
+Ok, so maybe we are treating people as "Delisted" when they really aren't
+
+Hopefully, when we find what is causing that, it will also fix the discrepancy between the other IDs and FSTATUS_NEW codes
+
+
+# Checking one ID
+
+This ID is 'Delisted' in `heart3.csv`, but 'Downgraded' in `analysis_data_080726.rds`
+
+
+I had, `escalation_data_prep_1.R`, `side_cleaning.R`, and `side_analysis.qmd` open while trying to debug this, 
+
+I got the datasets loaded (dat2, dat3, dat4... etc.) loaded from the respective file it was originally from, then used them here. 
+
+
+I'm having trouble getting `side_cleaning.R` and `side_analysis.qmd` to run step by step, so I can only look at the Original OG data `NEW_DATA.rds` and the most recently pushed as of 08/09/2026: `heart3.csv` 
+
+## Our Workflow
+
+```{r}
+# Original OG data `NEW_DATA.rds`
+d |> 
+  filter(WL_ID_CODE == "1497112") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+```{r}
+heart3 |> 
+  filter(WL_ID_CODE == "1497112") |> 
+  select(
+    INIT_DATE, CHG_DATE, STAT2_INIT, END_DATE, END_DATE_NEW, ALL_STAT2, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST
+  )
+
+```
+
+## Dr. K's Workflow
+
+```{r}
+dat.0 |> 
+  filter(WL_ID_CODE == "1497112") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+```{r}
+dat2 |> 
+  filter(WL_ID_CODE == "1497112") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+
+dat3 |> 
+  filter(WL_ID_CODE == "1497112") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+```{r}
+dat4 |> 
+  filter(WL_ID_CODE == "1497112") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+```{r}
+analysis_data |> 
+  filter(WL_ID_CODE == "1497112") |> 
+  select(
+    INIT_DATE, CHG_DATE, STAT2_INIT, END_DATE, END_DATE_NEW, ALL_STAT2, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST
+  )
+```
+
+
+
+## Report for ID 1497112
+
+As of 08/09/2026, heart3 was made using the original OG dataset, `NEW_DATA.rds`.
+
+In `NEW_DATA.rds` there are some observations where the STATUS of a candidate is 2999. I've only check with one ID, but if this continues for other ones, this could be the reason we are having many candidates listing as "Delisted" when they are not in Dr. K's data. 
+
+
+
+# Checking another ID
+
+## Our Workflow
+
+```{r}
+# Original OG data `NEW_DATA.rds`
+d |> 
+  filter(WL_ID_CODE == "1497907") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+```{r}
+heart3 |> 
+  filter(WL_ID_CODE == "1497907") |> 
+  select(
+    INIT_DATE, CHG_DATE, STAT2_INIT, END_DATE, END_DATE_NEW, ALL_STAT2, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST
+  )
+
+```
+
+
+## Dr. K Workflow
+
+```{r}
+# Dr. K data : INIT_DATA_080726.rds
+dat.0 |> 
+  filter(WL_ID_CODE == "1497907") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+```{r}
+dat2 |> 
+  filter(WL_ID_CODE == "1497907") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+
+dat3 |> 
+  filter(WL_ID_CODE == "1497907") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+```{r}
+dat4 |> 
+  filter(WL_ID_CODE == "1497907") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+```{r}
+dat5 |> 
+  filter(WL_ID_CODE == "1497907") |> 
+  select(
+        INIT_DATE, CHG_DATE, END_DATE, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST 
+  )
+```
+
+
+```{r}
+analysis_data |> 
+  filter(WL_ID_CODE == "1497907") |> 
+  select(
+    INIT_DATE, CHG_DATE, STAT2_INIT, END_DATE, END_DATE_NEW, ALL_STAT2, UNOS_CAND_STAT_CD, UNOS_CAND_STAT_CD_WAITLIST
+  )
+```
+## Report for ID 1497907
+
+Again, in the Original OG data `NEW_DATA.rds`, listings saying a candidate is at status 2999 appear again. 
+
+These do not appear in Dr. K's `INIT_DATA_080726.rds` data.
+
