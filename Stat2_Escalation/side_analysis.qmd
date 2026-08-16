@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Side Analysis"
 author: "Julia Aptekar"
@@ -182,4 +183,190 @@ write.csv(heart3, "data/heart3.csv", row.names=FALSE)
 
 `age_at_status2` is the candidate’s estimated age when they first reached status 2.
 - For candidates who started at status 2, this is the same as their initial age. 
+=======
+---
+title: "Side Analysis"
+author: "Julia Aptekar"
+format: html
+embed-resources: true
+---
+
+## Libraries/Loading
+```{r}
+library(dplyr)
+library(lubridate)
+
+d <- readRDS("data/NEW_DATA.rds")
+```
+
+## Cleaning
+```{r}
+data <- d %>% 
+  select(WL_ID_CODE, WLREG_AUDIT_ID_CODE, INIT_STAT, INIT_DATE, CHG_DATE,
+         UNOS_CAND_STAT_CD, END_DATE, REM_CD, FTIME, FSTATUS, 
+         DAYSWAIT_CHRON, INIT_AGE) %>%
+  mutate(INIT_DATE = ymd(INIT_DATE),
+    END_DATE = ymd(END_DATE),
+    CHG_DATE = ymd(CHG_DATE),
+    REM_CD_NEW = case_when(
+      END_DATE > as.Date("2024-12-31") ~ 9999,
+      TRUE ~ REM_CD),
+    END_DATE_NEW = case_when(
+      END_DATE > as.Date("2024-12-31") ~ as.Date("2024-12-31"),
+      TRUE ~ END_DATE),
+    INITIAL_STATUS = case_when(
+      INIT_STAT == 2110 ~ 1,
+      INIT_STAT == 2120 ~ 2,
+      INIT_STAT == 2130 ~ 3,
+      INIT_STAT == 2140 ~ 4,
+      INIT_STAT == 2150 ~ 5,
+      INIT_STAT == 2160 ~ 6,
+      TRUE ~ NA_real_),
+    STATUS = case_when(
+      UNOS_CAND_STAT_CD == 2110 ~ 1,
+      UNOS_CAND_STAT_CD == 2120 ~ 2,
+      UNOS_CAND_STAT_CD == 2130 ~ 3,
+      UNOS_CAND_STAT_CD == 2140 ~ 4,
+      UNOS_CAND_STAT_CD == 2150 ~ 5,
+      UNOS_CAND_STAT_CD == 2160 ~ 6,
+      UNOS_CAND_STAT_CD == 2999 ~ 2999,
+      TRUE ~ NA_real_))
+```
+
+## Code
+```{r}
+# finding the first status 2 date for each candidate
+status2_dates <- data %>%
+  filter(STATUS == 2) %>%
+  group_by(WL_ID_CODE) %>%
+  summarise(first_status2 = min(CHG_DATE),
+    .groups = "drop")
+
+# keeping candidates who reached status 2
+# removing candidates who had status 1 before status 2
+data1 <- data %>%
+  inner_join(status2_dates, by = "WL_ID_CODE") %>%
+  group_by(WL_ID_CODE) %>%
+  filter(!any(STATUS == 1 & CHG_DATE < first_status2, na.rm = TRUE)) %>%
+  ungroup()
+
+# keeping rows starting at first status 2
+data2 <- data1 %>%
+  arrange(WL_ID_CODE, CHG_DATE, WLREG_AUDIT_ID_CODE) %>%
+  filter(CHG_DATE >= first_status2) %>%
+  mutate(STAT2_INIT = first_status2)
+
+groups <- data2 %>%
+  group_by(WL_ID_CODE) %>%
+  summarise(first_status = first(INITIAL_STATUS),
+    init_date = first(INIT_DATE),
+    time0 = first(STAT2_INIT),
+    .groups = "drop") %>%
+  mutate(group = case_when(
+      first_status == 2 ~ 0,
+      TRUE ~ 1),
+    n_days_to_status2 = as.numeric(time0 - init_date))
+```
+
+## Joins
+```{r}
+# choosing the first event after status 2
+event_rows <- data2 %>%
+  mutate(event_date = case_when(
+      is.na(END_DATE_NEW) ~ CHG_DATE,
+      is.na(CHG_DATE) ~ END_DATE_NEW,
+      TRUE ~ pmin(CHG_DATE, END_DATE_NEW)),
+    event_source = case_when(
+      !is.na(END_DATE_NEW) & (is.na(CHG_DATE) | END_DATE_NEW <= CHG_DATE) ~ "removal",
+      !is.na(CHG_DATE) & (is.na(END_DATE_NEW) | CHG_DATE < END_DATE_NEW) ~ "status_change",
+      TRUE ~ NA_character_)) %>%
+  filter(STATUS != 2 | END_DATE_NEW <= CHG_DATE) %>%
+  group_by(WL_ID_CODE) %>%
+  slice_min(event_date, with_ties = FALSE) %>%
+  ungroup()
+
+# coding the event type
+heart_events <- event_rows %>%
+  mutate(event = case_when(
+      event_source == "removal" & REM_CD_NEW %in% c(5, 8, 13) ~ 1, # death/deterioration
+      event_source == "removal" & REM_CD_NEW %in% c(2, 3, 4, 14, 21, 22) ~ 2, # transplant
+      event_source == "removal" & REM_CD_NEW == 12 ~ 3, # recovery
+      event_source == "status_change" & STATUS == 1 ~ 4, # upgrade
+      event_source == "status_change" & STATUS %in% 3:6 ~ 5, # downgrade
+      event_source == "status_change" & STATUS == 2999 ~ 7, # delisted
+      TRUE ~ 6)) %>% # censored
+  select(WL_ID_CODE, event_date, event_source, event)
+
+# merging back all original variables with updated censoring variables
+sub <- d %>%
+  select(-END_DATE_NEW, -REM_CD_NEW) %>%
+  distinct(WL_ID_CODE, .keep_all = TRUE) %>%
+  left_join(data %>%
+      distinct(WL_ID_CODE, END_DATE_NEW, REM_CD_NEW),
+    by = "WL_ID_CODE")
+
+heart3 <- groups %>%
+  left_join(heart_events, by = "WL_ID_CODE") %>%
+  left_join(sub, by = "WL_ID_CODE") %>%
+  mutate(time_to_event = as.numeric(event_date - time0),
+    age_at_status2 = INIT_AGE + n_days_to_status2 / 365.25) %>%
+  filter(is.na(time_to_event) | time_to_event >= 0) %>%
+  select(WL_ID_CODE, time0, event_date, event, event_source,
+    time_to_event, group, n_days_to_status2, age_at_status2,
+    first_status, init_date, INIT_AGE, everything())
+```
+
+## Checking counts
+```{r}
+# checking final sample size and date logic
+heart3 %>%
+  summarise(n_rows = n(),
+    n_unique_ids = n_distinct(WL_ID_CODE),
+    missing_time0 = sum(is.na(time0)),
+    negative_time_to_event = sum(time_to_event < 0, na.rm = TRUE))
+
+# checking event counts
+heart3 %>% count(event, event_source, sort = TRUE)
+
+# checking censoring codes
+heart3 %>%
+  filter(event == 6) %>%
+  count(event_source, REM_CD_NEW, sort = TRUE)
+```
+
+## Writing CSV
+```{r}
+write.csv(heart3, "data/heart3.csv", row.names=FALSE)
+```
+
+## Variable Definitions
+`time0` is the date when the candidate first reaches status 2. If the candidate started at status 2, `time0` is their `INIT_DATE`. If the candidate reached status 2 later, `time0` is their first `CHG_DATE` with status 2.
+
+`group` shows how the candidate entered the status 2 group. 
+- Candidates with `group = 0` started at status 2. 
+- Candidates with `group = 1` reached status 2 later.
+
+`event_date` is the date of the first event after `time0`.
+
+`event_source` shows where the event came from. 
+- If `event_source = "removal"`, the event was based on `END_DATE_NEW` and `REM_CD_NEW`.
+- If `event_source = "status_change"`, the event was based on `CHG_DATE` and `STATUS`.
+
+`event` identifies the type of first event after `time0`:
+
+1: Death/deterioration
+2: Heart transplantation
+3: Recovery
+4: Upgrade to status 1
+5: Downgrade to status 3–6
+6: Censoring
+7: Delisting as status 2999
+
+`time_to_event` is the number of days from `time0` to `event_date`.
+
+`n_days_to_status2` is the number of days from initial listing to `time0`.
+
+`age_at_status2` is the candidate’s estimated age when they first reached status 2.
+- For candidates who started at status 2, this is the same as their initial age. 
+>>>>>>> 0d6cace00bf5fffefcc3daea17adfbccc0496109
 - For candidates who reached status 2 later, this is their initial age plus the time between initial listing and status 2, converted from days to years.

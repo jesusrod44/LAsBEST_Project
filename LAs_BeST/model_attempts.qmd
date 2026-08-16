@@ -289,7 +289,7 @@ summary(crr_death_adjusted)
 
 ## Results Table
 
-Function to extrac the info we need from the cox models
+Function to extract the info we need from the cox models
 
 ```{r}
 # Extract from coxph model
@@ -508,6 +508,8 @@ results_adjusted <- bind_rows(
     P  = ifelse(P < 0.001, "P < 0.001", sprintf("%.3f", P))
   ) |>
   select(Outcome, HR, CI, P)
+
+# results_adjusted$P[6] <- cell_spec(results_adjusted$P[6], color = "#ED907E")
 ```
 
 The New Kable Table
@@ -519,7 +521,7 @@ kable_table <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   # we can mess with this to change the title font and size
-    caption   = '<center><span style="font-size:18pt; font-weight:bold;">Table 2. Association of Escalation Status with 30 Day Outcomes</span></center>'
+    caption   = '<center><span style="font-size:18pt; font-weight:bold;">Table 1. Association of Escalation Status with 30 Day Outcomes</span></center>'
   ) |>
   kable_styling(
     full_width = T,
@@ -531,6 +533,11 @@ kable_table <-
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 2) |>
   pack_rows("Fine-Gray Subdistribution Model (SHR*)", 3, 4) |>
   pack_rows("Direct Binomial Regression Model (OR*)", 5, 6) 
+
+Sys.setenv(
+  CHROMOTE_CHROME =
+    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+)
 
 save_kable(kable_table, file = "results_table.png")
 ```
