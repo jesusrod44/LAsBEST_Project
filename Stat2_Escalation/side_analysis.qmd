@@ -168,13 +168,13 @@ write.csv(heart3, "data/heart3.csv", row.names=FALSE)
 
 `event` identifies the type of first event after `time0`:
 
-1: Death/deterioration
-2: Heart transplantation
-3: Recovery
-4: Upgrade to status 1
-5: Downgrade to status 3–6
-6: Censoring
-7: Delisting as status 2999
+0 = Censored
+1 = Death/deterioration
+2 = Heart transplantation
+3 = Recovery
+4 = Upgrade to Status 1
+5 = Downgrade to Status 3–6
+6 = Delisting/status 2999
 
 `time_to_event` is the number of days from `time0` to `event_date`.
 
