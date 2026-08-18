@@ -77,12 +77,12 @@ options(warn = 1)
 # 1. Make sure the data you want to load in is loaded in the setup chunk.
 
 # # Our cleaned data
-heart3 <-
-  read_csv("data/heart3.csv")
+# heart3 <-
+#   read_csv("data/heart3.csv")
 
 # Dr. Kawaguchi's cleaned data
-# analysis_data0 <-
-#   readRDS("data/analysis_data_080726.rds")
+analysis_data0 <-
+  readRDS("data/analysis_data_081126.rds")
   
 ```
 
@@ -114,7 +114,6 @@ analysis_data <-
         TRUE ~ FTIME_NEW
       )
   ) 
-
 ```
 
 # Baseline Variates
@@ -123,7 +122,7 @@ analysis_data <-
 baseline_variates <- 
   # 2. In the Baseline Variates section, make sure the data you loaded in is being called in the `baseline_variates` pipeline
   
-  heart3 |> # change this dataset to the one you'd like to use
+  analysis_data |> # change this dataset to the one you'd like to use
                    # heart3 or analysis_data
   
   
@@ -151,7 +150,7 @@ baseline_variates <-
          # make sure to comment out the EXCEPTION variable in the 
          # same `baseline_variates` pipeline from before.
          
-         # EXCEPTION, # <- <- <- exception variable
+         EXCEPTION, # <- <- <- exception variable
          
          FTIME_NEW, # time and event variables
          FSTATUS_NEW,         #
@@ -179,14 +178,19 @@ baseline_variates <-
         ISCH_CARD_Y,
         # DIAL_AFTER_LIST,
         # DIAL_AFTER_LIST_Y,
+        EXCEPTION,
         FSTATUS_NEW),
       as.factor
     ),
     group = factor(group,
                    levels = c(0,1),
                    labels = c("Stable", "Escalated")),
-    event_labels = factor(FSTATUS_NEW,
-                          
+    EXCEPTION = factor(EXCEPTION,
+                   levels = c(0,1),
+                   labels = c("No", "Yes")),
+    ETHCAT2_NEW = factor(ETHCAT2_NEW,
+                   levels = c("White", "Black", "Hispanic", "Asian", 'Other')),
+    event_labels = factor(FSTATUS_NEW,     
                    levels = c(1,2,3,4,5,6,0),
                    labels = c("Death/Deterioration",
                               "Transplantation",
@@ -196,6 +200,8 @@ baseline_variates <-
                               "Delisted",
                               "Censored"))
   )
+
+str(baseline_variates)
 
 ```
 
@@ -239,7 +245,7 @@ FSTATUS_NAs <- baseline_variates |>
     )
   )
 
-FSTATUS_NAs
+kable(FSTATUS_NAs)
 ```
 
 # Defining Variables for Models
@@ -259,21 +265,23 @@ While their unadjusted formulas won't need these variables:
 Surv(FTIME_NEW, cause) ~ group,
 ```
 
-
 ```{r}
 adjusted_variables <- c(
-  # 'INIT_AGE' , 
+  # 'INIT_AGE' ,
   'age_at_status2' ,  # updated age adjusted to landmark
   'GENDER_NEW' ,
   'INIT_BMI_NEW' ,
-  # 'ETHCAT_NEW' , 
+  # 'ETHCAT_NEW' ,
   'ETHCAT2_NEW' ,     # simplified ethnicity var
   'BTYPE_REC' ,
-  # 'DIAB' , 
-  'DIAB_Y' ,   # yes/no diabetes indicator 
+  # 'DIAB' ,
+  'DIAB_Y' ,   # yes/no diabetes indicator
   'VENTILATOR_TCR' ,
-  # 'PRIOR_CARD_SURG_TCR' , 
+  # 'PRIOR_CARD_SURG_TCR' ,
   'PRIOR_CARD_SURG_TCR_Y' ,  # binary indicator
+
+  'EXCEPTION', # <- exception variable!! comment out if not in baseline_variates!
+
   'ISCH_CARD_Y'
 )
 ```
@@ -392,6 +400,16 @@ fit_cox_model <-
       
     )
   }
+
+
+baseline_variates |> 
+  mutate(
+    age_diff = abs(INIT_AGE - age_at_status2)
+    ) |> 
+      filter(age_diff > 0) |> 
+      arrange(desc(age_diff))
+
+
 ```
 
 ### Run Cox Models
@@ -424,6 +442,28 @@ Death
 summary(cox_models$Unadjusted[[1]]) 
 summary(cox_models$Adjusted[[1]])
 ```
+Transplantation 
+
+```{r, eval = F}
+summary(cox_models$Unadjusted[[2]])
+summary(cox_models$Adjusted[[2]])
+```
+
+
+Upgraded to Status 1
+
+```{r, eval = F}
+summary(cox_models$Unadjusted[[3]])
+summary(cox_models$Adjusted[[3]])
+```
+
+Downgraded to Status 3-6 
+
+```{r, eval = F}
+summary(cox_models$Unadjusted[[4]])
+summary(cox_models$Adjusted[[4]])
+```
+
 
 Delisted 
 
@@ -512,21 +552,50 @@ fg_models <-
   )
 ```
 
-Checking to see the summary of the transplantation models for Fine-Gray
+Summaries 
+
+Death
 
 ```{r, eval = F}
 
+summary(fg_models$Unadjusted[[1]])
+summary(fg_models$Adjusted[[1]])
+
+```
+
+Transplantation
+
+```{r, eval = F}
 summary(fg_models$Unadjusted[[2]])
 summary(fg_models$Adjusted[[2]])
 
 ```
 
+Upgraded to Status 1
+
 ```{r, eval = F}
-# Delisted
+
+summary(fg_models$Unadjusted[[3]])
+summary(fg_models$Adjusted[[3]])
+
+```
+
+Downgraded to Status 3-6
+
+```{r, eval = F}
+summary(fg_models$Unadjusted[[4]])
+summary(fg_models$Adjusted[[4]])
+
+```
+
+Delisted
+
+```{r, eval = F}
 summary(fg_models$Unadjusted[[5]])
 summary(fg_models$Adjusted[[5]])
 
 ```
+
 # Direct Binomial Regression Model Functions
 
 ## DBR Formula
@@ -625,7 +694,7 @@ binreg_models <-
   )
 ```
 
-Checking Transplantation and Delisted again 
+Summaries 
 
 ```{r, eval = F}
 summary(binreg_models$Unadjusted[[1]])
@@ -633,9 +702,27 @@ summary(binreg_models$Adjusted[[1]])
 ```
 
 ```{r, eval = F}
+summary(binreg_models$Unadjusted[[2]])
+summary(binreg_models$Adjusted[[2]])
+```
+
+
+```{r, eval = F}
+summary(binreg_models$Unadjusted[[3]])
+summary(binreg_models$Adjusted[[3]])
+```
+
+```{r, eval = F}
+summary(binreg_models$Unadjusted[[4]])
+summary(binreg_models$Adjusted[[4]])
+```
+
+
+```{r, eval = F}
 summary(binreg_models$Unadjusted[[5]])
 summary(binreg_models$Adjusted[[5]])
 ```
+
 
 # Extracting information from models for Kable Tables
 
@@ -869,6 +956,11 @@ kable_table_unadjusted <-
     # position = 'left',
     font_size = 19
   ) |> 
+   add_header_above(
+    c("Models do not include Group*Exception interaction" = 4),
+    bold = T,
+    font_size = 15
+  ) |>
   column_spec(1, width = '10em', bold = T, color = "black") |> 
   column_spec(2:4, width = "7em", bold = F, color = "black") |> 
   
@@ -900,6 +992,11 @@ kable_table_adjusted <-
     position = 'left',
     font_size = 19
   ) |> 
+   add_header_above(
+    c("Models do not include Group*Exception interaction" = 4),
+    bold = T,
+    font_size = 15
+  ) |>
   column_spec(1, bold = T, color = "black") |> 
   column_spec(2:4, bold = F, color = "black") |> 
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
@@ -921,6 +1018,5 @@ kable_table_adjusted
 save_kable(kable_table_unadjusted, file = "tables/new_unadjusted_results_table_DRAFT.png")
 save_kable(kable_table_adjusted, file = "tables/new_adjusted_results_table_DRAFT.png")
 ```
-
 
 
