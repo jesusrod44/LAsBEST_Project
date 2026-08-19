@@ -1,65 +1,14 @@
 ---
-title: "Functionally Programming Fitting and Extracting Models"
+title: "Exception Status Exploration"
 author: "Jesus Rodriguez" 
 format: html
 embed-resources: true
 ---
 
-The purpose of this quarto doc is to find a way to 'programmatically functionize' a way to run the models, know when there is an error with a model (like how we've had some outcomes with a variable where it is all NA), extract the information we need from the models and if an error occurred with the model then the info extract is just NA. 
-
-All so that the kable tables created can be ran and if a model had issues, it will say NA on the table, so we know what outcome to take a deeper look into.
-
-Hopefully this also makes the code more efficient because it takes a long time for my laptop to render the `baseline_variate_preparation.qmd` file
-
-I have not yet updated any descriptive statistics tables here. 
-
-::: {.callout-tip}
-
-You should only have to do three things.
-
-1. Make sure the data you want to load in is loaded in the setup chunk.
-2. In the Baseline Variates section, make sure the data you loaded in is being called in the `baseline_variates` pipeline
-3. If you are using the `heart3.csv` data as of 08/09/2026, make sure to comment out the EXCEPTION variable in the same `baseline_variates` pipeline from before.
-
-The reason being is because to keep things streamlined, I removed rows with NA values in the data so each model runs the same data. The EXCEPTION variable in our data has over 8000 missing values. 
-
-In Dr. Kawaguchi's data, the missing values are fixed, BUT the outcome: Delisted is now gone from our analysis 
-
-I haven't yet included EXCEPTION in any of the models, so I *should* have EXCEPTION commented out already 
-:::
-
-::: {.callout-important}
-
-IMPORTANT!
-
-When using Dr. K's data, the direct binomial regression models agree with each other, so maybe that issue is related to the differences in our data rather than binreg(). 
-
-When comparing the datasets, Dr. K's data contained 0 observatiosn classified as "Delisted", whereas our data contained about ~1000 candidates classified as "Delisted".
-
-Also, when comparing candidates present in both datasets, there are ~1250 IDs with different `FSTATUS_NEW` codes. 
-
-~`WL_ID_CODE == 1497112` is classified as "Delisted" in heart3.csv, but "Downgraded" in `analysis_data_080726.rds`
-
-In `NEW_DATA.rds`, there are observations for candidate that say 2999 where they do not appear so in Dr. K's `INIT_DATA_080726`, and it is causing the `CHG_DATE` and `UNOS_CAND_STAT_CD` to be different in the final cleaned datasets `heart3.csv` and `analysis_data_080726.rds` 
-
-I did this comparison in `debugging.qmd`, but you'll need to have `escalation_data_prep_1.R`, `side_cleaning.R`, and `side_analysis.qmd` open to load the data step by step
-
-:::
+This .qmd file is to further check on group\*exception interaction effects, it's similar to functional_models.qmd, but it has the formulas changed to include `group*EXCEPTION` 
 
 
 ## Libraries/Loading
-
-::: {.callout-important}
-Depending on what cleaned data set you'd like to use (Dr. Kawaguchi's or ours), make sure it is loaded in and the other one is commented out. You'll also have to make sure your wanted data set is being called in the `Baseline Variates` section  
-:::
-
-::: {.callout-important}
-08/09/2026
-
-If using `analysis_data_080726.rds` when you ran the code, the Delisted (or downgraded to unknown status) does not exist
-
-So these models are gonna have issues right now
-:::
 
 ```{r setup, message = F, warning = F, output = F}
 library(tidyverse) # general tidying and manipulation
@@ -92,6 +41,7 @@ This cleans the age_at_status2, group, FSTATUS codes, and 90 day censoring varia
 
 If using our `heart3.csv` data, this code will produce an error. 
 
+
 ```{r, error = T}
 analysis_data <- 
   analysis_data0 |> 
@@ -115,6 +65,7 @@ analysis_data <-
       )
   ) 
 ```
+
 
 # Baseline Variates
 
@@ -265,23 +216,51 @@ While their unadjusted formulas won't need these variables:
 Surv(FTIME_NEW, cause) ~ group,
 ```
 
+!!!These `adjusted_variables` DO NOT HAVE a group * EXCEPTION interaction term!!!
+
+
+```{r}
+# adjusted_variables <- c(
+#   # 'INIT_AGE' , 
+#   'age_at_status2' ,  # updated age adjusted to landmark
+#   'GENDER_NEW' ,
+#   'INIT_BMI_NEW' ,
+#   # 'ETHCAT_NEW' , 
+#   'ETHCAT2_NEW' ,     # simplified ethnicity var
+#   'BTYPE_REC' ,
+#   # 'DIAB' , 
+#   'DIAB_Y' ,   # yes/no diabetes indicator 
+#   'VENTILATOR_TCR' ,
+#   # 'PRIOR_CARD_SURG_TCR' , 
+#   'PRIOR_CARD_SURG_TCR_Y' ,  # binary indicator
+#   
+#   'EXCEPTION', # <- exception variable!! comment out if not in baseline_variates!
+#   
+#   'ISCH_CARD_Y'
+# )
+```
+
+
+These variables do have a group * EXCEPTION interaction term!
+
+group*EXCEPTION = group:EXCEPTION + group + EXCEPTION
+
 ```{r}
 adjusted_variables <- c(
-  # 'INIT_AGE' ,
+   'EXCEPTION', # <- exception variable!! comment out if not in baseline_variates!
+  'group:EXCEPTION',
+  # 'INIT_AGE' , 
   'age_at_status2' ,  # updated age adjusted to landmark
   'GENDER_NEW' ,
   'INIT_BMI_NEW' ,
-  # 'ETHCAT_NEW' ,
+  # 'ETHCAT_NEW' , 
   'ETHCAT2_NEW' ,     # simplified ethnicity var
   'BTYPE_REC' ,
-  # 'DIAB' ,
-  'DIAB_Y' ,   # yes/no diabetes indicator
+  # 'DIAB' , 
+  'DIAB_Y' ,   # yes/no diabetes indicator 
   'VENTILATOR_TCR' ,
-  # 'PRIOR_CARD_SURG_TCR' ,
+  # 'PRIOR_CARD_SURG_TCR' , 
   'PRIOR_CARD_SURG_TCR_Y' ,  # binary indicator
-
-  'EXCEPTION', # <- exception variable!! comment out if not in baseline_variates!
-
   'ISCH_CARD_Y'
 )
 ```
@@ -343,7 +322,7 @@ make_cox_formula <-
         )
       )
     } else {
-      Surv(FTIME_NEW, cause) ~ group
+      Surv(FTIME_NEW, cause) ~ group * EXCEPTION
     }
   }
 ```
@@ -400,15 +379,6 @@ fit_cox_model <-
       
     )
   }
-
-
-baseline_variates |> 
-  mutate(
-    age_diff = abs(INIT_AGE - age_at_status2)
-    ) |> 
-      filter(age_diff > 0) |> 
-      arrange(desc(age_diff))
-
 
 ```
 
@@ -472,9 +442,6 @@ summary(cox_models$Unadjusted[[5]])
 summary(cox_models$Adjusted[[5]])
 ```
 
-
-
-
 # Fine-Gray Model Functions
 
 ```{r}
@@ -498,7 +465,7 @@ fit_fg_model <-
       } else {
         
         covariate_matrix <- model.matrix(
-          ~ group,
+          ~ group * EXCEPTION,
           data = data
         )[, -1, drop = F]
         
@@ -612,7 +579,7 @@ make_binreg_formula <-
         )
       )
     } else {
-      Event(FTIME_NEW, cause) ~ group
+      Event(FTIME_NEW, cause) ~ group * EXCEPTION
     }
   }
 ```
@@ -722,7 +689,6 @@ summary(binreg_models$Adjusted[[4]])
 summary(binreg_models$Unadjusted[[5]])
 summary(binreg_models$Adjusted[[5]])
 ```
-
 
 # Extracting information from models for Kable Tables
 
@@ -950,22 +916,23 @@ kable_table_unadjusted <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   
-    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 2. Unadjusted Escalated Effect Estimates for Waitlist Outcomes at 90 Days</span>",
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 4. Unadjusted Escalated Effect Estimates for Waitlist Outcomes at 90 Days</span>",
   ) |> 
   kable_styling(
     full_width = T,
     # position = 'left',
     font_size = 19
   ) |> 
-   add_header_above(
-    c("Models do not include Group*Exception interaction" = 4),
+  add_header_above(
+    c("Models include Group*Exception interaction" = 4),
     bold = T,
     font_size = 15
-  ) |>
+  ) |> 
   column_spec(1, width = '10em', bold = T, color = "black") |> 
   column_spec(2:4, width = "7em", bold = F, color = "black") |> 
   
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
+  
   pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10)
 ```
 
@@ -982,18 +949,18 @@ kable_table_unadjusted <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   
-    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 2. Unadjusted Escalated Effect Estimates for Waitlist Outcomes at 90 Days</span>",
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 4. Unadjusted Escalated Effect Estimates for Waitlist Outcomes at 90 Days</span>",
   ) |> 
   kable_styling(
     full_width = T,
     # position = 'left',
     font_size = 19
   ) |> 
-   add_header_above(
-    c("Models do not include Group*Exception interaction" = 4),
+  add_header_above(
+    c("Models include Group*Exception interaction" = 4),
     bold = T,
     font_size = 15
-  ) |>
+  ) |> 
   column_spec(1, width = '10em', bold = T, color = "black") |> 
   column_spec(2:4, width = "7em", bold = F, color = "black") |> 
   
@@ -1019,22 +986,22 @@ kable_table_adjusted <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   
-    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 3. Adjusted Escalated Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 5. Adjusted Escalated Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
   ) |>
   kable_styling(
     full_width = T,
     position = 'left',
     font_size = 19
   ) |> 
-   add_header_above(
-    c("Models do not include Group*Exception interaction" = 4),
+  add_header_above(
+    c("Models include Group*Exception interaction" = 4),
     bold = T,
     font_size = 15
-  ) |>
+  ) |> 
   column_spec(1, bold = T, color = "black") |> 
   column_spec(2:4, bold = F, color = "black") |> 
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
-  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) 
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10)
 ```
 
 ```{r, eval = F}
@@ -1050,18 +1017,18 @@ kable_table_adjusted <-
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
                   
-    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 3. Adjusted Escalated Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 5. Adjusted Escalated Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
   ) |>
   kable_styling(
     full_width = T,
     position = 'left',
     font_size = 19
   ) |> 
-   add_header_above(
-    c("Models do not include Group*Exception interaction" = 4),
+  add_header_above(
+    c("Models include Group*Exception interaction" = 4),
     bold = T,
     font_size = 15
-  ) |>
+  ) |> 
   column_spec(1, bold = T, color = "black") |> 
   column_spec(2:4, bold = F, color = "black") |> 
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
@@ -1080,8 +1047,528 @@ kable_table_adjusted
 
 
 ```{r}
-save_kable(kable_table_unadjusted, file = "tables/new_unadjusted_results_table_DRAFT.png")
-save_kable(kable_table_adjusted, file = "tables/new_adjusted_results_table_DRAFT.png")
+Sys.setenv(
+  CHROMOTE_CHROME =
+    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+)
 ```
 
 
+
+```{r}
+save_kable(kable_table_unadjusted, file = "tables/unadjusted_results_table_incldues_interaction.png")
+save_kable(kable_table_adjusted, file = "tables/adjusted_results_table_incldues_interaction.png")
+```
+
+
+# group*EXCEPTION interaction info extraction
+
+# Unadjusted
+
+```{r}
+# Extract from coxph model
+
+extract_cox <- function(model, outcome, adjustment) {
+  
+  # an error occurred with the model, have NA values
+  # fill in the values
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Cause-Specific Cox",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    # if model exists extract its info
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Cause-Specific Cox",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$conf.int[3, "exp(coef)"],
+      Lower    = s$conf.int[3, "lower .95"],
+      Upper    = s$conf.int[3, "upper .95"],
+      P        = s$coefficients[3, "Pr(>|z|)"]
+    )
+    
+    
+     # if an error occurs while extract info from model,
+     # make things NA
+  }, error = function(e) {
+    data.frame(
+      Model = "Cause-Specific Cox",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  }) 
+}
+```
+
+
+## Fine-Gray extraction
+
+```{r}
+extract_fg <- function(model, outcome, adjustment) {
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Fine-Gray Subdistribution",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Fine-Gray Subdistribution",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$conf.int[3, "exp(coef)"],
+      Lower = s$conf.int[3, "2.5%"],
+      Upper = s$conf.int[3, "97.5%"],
+      P = s$coef[3, "p-value"]
+    )
+  }, error = function(e) {
+    data.frame(
+      Model = "Fine-Gray Subdistribution",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  })
+}
+```
+
+## DBR extraction
+
+```{r}
+extract_binreg <- function(model, outcome, adjustment) {
+  
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Direct Binomial Regression",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Direct Binomial Regression",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$exp[4, "Estimate"],
+      Lower = s$exp[4, "2.5%"],
+      Upper = s$exp[4, "97.5%"],
+      P = s$coef[4, "P-value"]
+    )
+    
+  }, error = function(e) {
+    
+    data.frame(
+      Model = "Direct Binomial Regression",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  })
+}
+```
+
+# Making the dataframes for the tables
+
+`unadjusted_results` contains the unadjusted results ...
+
+```{r}
+unadjusted_results <- 
+  bind_rows(
+    
+    map2_dfr(
+      cox_models$Unadjusted,
+      competing_risks$outcome,
+      ~ extract_cox(.x, .y, "Unadjusted")
+    ),
+    
+    map2_dfr(
+      fg_models$Unadjusted,
+      competing_risks$outcome,
+      ~ extract_fg(.x, .y, "Unadjusted")
+    ),
+    
+    map2_dfr(
+      binreg_models$Unadjusted,
+      competing_risks$outcome,
+      ~extract_binreg(.x, .y, "Unadjusted")
+    )
+  )
+```
+
+# Kable Table Making
+
+## Unadjusted Kable
+
+```{r}
+kable_table_unadjusted <- 
+  unadjusted_results |>
+  filter(Model != "Direct Binomial Regression") |> 
+  mutate(
+    Estimate = round(Estimate, 3),
+    CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
+    P  = ifelse(P < 0.001, "p < 0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, Estimate, CI, P) |>
+   kable(
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
+                  
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 6. Unadjusted Group*Exception Interaction Effect Estimates for Waitlist Outcomes at 90 Days</span>",
+  ) |> 
+  kable_styling(
+    full_width = T,
+    # position = 'left',
+    font_size = 19
+  ) |> 
+  column_spec(1, width = '10em', bold = T, color = "black") |> 
+  column_spec(2:4, width = "7em", bold = F, color = "black") |> 
+  
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) 
+```
+
+```{r, eval = F}
+kable_table_unadjusted <- 
+  unadjusted_results |>
+  mutate(
+    Estimate = round(Estimate, 3),
+    CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
+    P  = ifelse(P < 0.001, "p < 0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, Estimate, CI, P) |>
+   kable(
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
+                  
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 6. Unadjusted Group*Exception Interaction Effect Estimates for Waitlist Outcomes at 90 Days</span>",
+  ) |> 
+  kable_styling(
+    full_width = T,
+    # position = 'left',
+    font_size = 19
+  ) |> 
+  column_spec(1, width = '10em', bold = T, color = "black") |> 
+  column_spec(2:4, width = "7em", bold = F, color = "black") |> 
+  
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
+  
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) |> 
+  pack_rows("Direct Binomial Regression Model (OR*)", 11, 15)
+```
+
+
+# Adjusted
+
+## Cox info extraction
+
+```{r}
+# Extract from coxph model
+
+extract_cox <- function(model, outcome, adjustment) {
+  
+  # an error occurred with the model, have NA values
+  # fill in the values
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Cause-Specific Cox",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    # if model exists extract its info
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Cause-Specific Cox",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$conf.int[17, "exp(coef)"],
+      Lower    = s$conf.int[17, "lower .95"],
+      Upper    = s$conf.int[17, "upper .95"],
+      P        = s$coefficients[17, "Pr(>|z|)"]
+    )
+    
+    
+     # if an error occurs while extract info from model,
+     # make things NA
+  }, error = function(e) {
+    data.frame(
+      Model = "Cause-Specific Cox",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  }) 
+}
+```
+
+
+## Fine-Gray extraction
+
+```{r}
+extract_fg <- function(model, outcome, adjustment) {
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Fine-Gray Subdistribution",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Fine-Gray Subdistribution",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$conf.int[17, "exp(coef)"],
+      Lower = s$conf.int[17, "2.5%"],
+      Upper = s$conf.int[17, "97.5%"],
+      P = s$coef[17, "p-value"]
+    )
+  }, error = function(e) {
+    data.frame(
+      Model = "Fine-Gray Subdistribution",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  })
+}
+```
+
+## DBR extraction
+
+```{r}
+extract_binreg <- function(model, outcome, adjustment) {
+  
+  if (is.null(model)) {
+    return(
+      data.frame(
+        Model = "Direct Binomial Regression",
+        Outcome = outcome,
+        Adjustment = adjustment,
+        Estimate = NA_real_,
+        Lower = NA_real_,
+        Upper = NA_real_,
+        P = NA_real_
+      )
+    )
+  }
+  
+  tryCatch({
+    
+    s <- summary(model)
+    
+    data.frame(
+      Model = "Direct Binomial Regression",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = s$exp[18, "Estimate"],
+      Lower = s$exp[18, "2.5%"],
+      Upper = s$exp[18, "97.5%"],
+      P = s$coef[18, "P-value"]
+    )
+    
+  }, error = function(e) {
+    
+    data.frame(
+      Model = "Direct Binomial Regression",
+      Outcome = outcome,
+      Adjustment = adjustment,
+      Estimate = NA_real_,
+      Lower = NA_real_,
+      Upper = NA_real_,
+      P = NA_real_
+    )
+  })
+}
+```
+
+# Making the dataframes for the tables
+
+`adjusted_results`
+
+```{r}
+adjusted_results <- 
+  bind_rows(
+    # Cox Model info
+    map2_dfr(
+      cox_models$Adjusted,
+      competing_risks$outcome,
+      ~ extract_cox(.x, .y, "Adjusted")
+    ),
+    # Fine-Gray Model info
+    map2_dfr(
+      fg_models$Adjusted,
+      competing_risks$outcome,
+      ~ extract_fg(.x, .y, "Adjusted")
+    )
+  )
+```
+
+```{r, eval = F}
+adjusted_results <- 
+  bind_rows(
+    # Cox Model info
+    map2_dfr(
+      cox_models$Adjusted,
+      competing_risks$outcome,
+      ~ extract_cox(.x, .y, "Adjusted")
+    ),
+    # Fine-Gray Model info
+    map2_dfr(
+      fg_models$Adjusted,
+      competing_risks$outcome,
+      ~ extract_fg(.x, .y, "Adjusted")
+    ),
+    # DBR Model info
+    map2_dfr(
+      binreg_models$Adjusted,
+      competing_risks$outcome,
+      ~extract_binreg(.x, .y, "Adjusted")
+    )
+  )
+```
+
+# Kable Table Making
+
+## Adjusted Kable
+
+
+```{r}
+kable_table_adjusted <- 
+  adjusted_results |>
+  filter(Model != "Direct Binomial Regression") |> 
+  mutate(
+    Estimate = round(Estimate, 3),
+    CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
+    P  = ifelse(P < 0.001, "p < 0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, Estimate, CI, P) |>
+  kable(
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
+                  
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 7. Adjusted Group*Exception Interaction Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
+  ) |>
+  kable_styling(
+    full_width = T,
+    position = 'left',
+    font_size = 19
+  ) |> 
+  column_spec(1, bold = T, color = "black") |> 
+  column_spec(2:4, bold = F, color = "black") |> 
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10)  
+```
+
+```{r, eval = F}
+kable_table_adjusted <- 
+  adjusted_results |>
+  mutate(
+    Estimate = round(Estimate, 3),
+    CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
+    P  = ifelse(P < 0.001, "p < 0.001", sprintf("%.3f", P))
+  ) |>
+  select(Outcome, Estimate, CI, P) |>
+  kable(
+    col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
+    align = c("l", "c", "c", "c"),
+                  
+    caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 7. Adjusted Group*Exception Interaction Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
+  ) |>
+  kable_styling(
+    full_width = T,
+    position = 'left',
+    font_size = 19
+  ) |> 
+  column_spec(1, bold = T, color = "black") |> 
+  column_spec(2:4, bold = F, color = "black") |> 
+  pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
+  
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) |>
+  pack_rows("Direct Binomial Regression Model (OR*)", 11, 15) 
+```
+
+## Show and Save Kables
+
+```{r}
+kable_table_unadjusted
+kable_table_adjusted
+```
+
+```{r}
+save_kable(kable_table_unadjusted, file = "tables/unadjusted_group_exception_interaction_table.png")
+save_kable(kable_table_adjusted, file = "tables/adjusted_group_exception_interaction_table.png")
+```
