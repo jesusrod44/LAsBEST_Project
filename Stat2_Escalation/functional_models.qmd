@@ -13,53 +13,7 @@ Hopefully this also makes the code more efficient because it takes a long time f
 
 I have not yet updated any descriptive statistics tables here. 
 
-::: {.callout-tip}
-
-You should only have to do three things.
-
-1. Make sure the data you want to load in is loaded in the setup chunk.
-2. In the Baseline Variates section, make sure the data you loaded in is being called in the `baseline_variates` pipeline
-3. If you are using the `heart3.csv` data as of 08/09/2026, make sure to comment out the EXCEPTION variable in the same `baseline_variates` pipeline from before.
-
-The reason being is because to keep things streamlined, I removed rows with NA values in the data so each model runs the same data. The EXCEPTION variable in our data has over 8000 missing values. 
-
-In Dr. Kawaguchi's data, the missing values are fixed, BUT the outcome: Delisted is now gone from our analysis 
-
-I haven't yet included EXCEPTION in any of the models, so I *should* have EXCEPTION commented out already 
-:::
-
-::: {.callout-important}
-
-IMPORTANT!
-
-When using Dr. K's data, the direct binomial regression models agree with each other, so maybe that issue is related to the differences in our data rather than binreg(). 
-
-When comparing the datasets, Dr. K's data contained 0 observatiosn classified as "Delisted", whereas our data contained about ~1000 candidates classified as "Delisted".
-
-Also, when comparing candidates present in both datasets, there are ~1250 IDs with different `FSTATUS_NEW` codes. 
-
-~`WL_ID_CODE == 1497112` is classified as "Delisted" in heart3.csv, but "Downgraded" in `analysis_data_080726.rds`
-
-In `NEW_DATA.rds`, there are observations for candidate that say 2999 where they do not appear so in Dr. K's `INIT_DATA_080726`, and it is causing the `CHG_DATE` and `UNOS_CAND_STAT_CD` to be different in the final cleaned datasets `heart3.csv` and `analysis_data_080726.rds` 
-
-I did this comparison in `debugging.qmd`, but you'll need to have `escalation_data_prep_1.R`, `side_cleaning.R`, and `side_analysis.qmd` open to load the data step by step
-
-:::
-
-
 ## Libraries/Loading
-
-::: {.callout-important}
-Depending on what cleaned data set you'd like to use (Dr. Kawaguchi's or ours), make sure it is loaded in and the other one is commented out. You'll also have to make sure your wanted data set is being called in the `Baseline Variates` section  
-:::
-
-::: {.callout-important}
-08/09/2026
-
-If using `analysis_data_080726.rds` when you ran the code, the Delisted (or downgraded to unknown status) does not exist
-
-So these models are gonna have issues right now
-:::
 
 ```{r setup, message = F, warning = F, output = F}
 library(tidyverse) # general tidying and manipulation
@@ -72,6 +26,8 @@ library(table1)
 library(cmprsk)
 library(KMsurv)
 library(mets)
+library(writexl)
+
 options(warn = 1)
 
 # 1. Make sure the data you want to load in is loaded in the setup chunk.
@@ -82,27 +38,35 @@ options(warn = 1)
 
 # Dr. Kawaguchi's cleaned data
 analysis_data0 <-
-  readRDS("data/analysis_data_081126.rds")
+  readRDS("data/analysis_data_082626.rds")
   
 ```
 
 ## Cleaning in `analysis_data`
 
-This cleans the age_at_status2, group, FSTATUS codes, and 90 day censoring variables and rules in Dr. Kawaguchi's code
+This cleans the AGE_AT_STAT2, INIT_STAT2, FSTATUS codes, and 90 day censoring variables and rules in Dr. Kawaguchi's code
 
 If using our `heart3.csv` data, this code will produce an error. 
 
 ```{r, error = T}
 analysis_data <- 
   analysis_data0 |> 
+  # We want to drop anyone that was STATUS 1 from our analytic cohort
+  filter(INIT_STAT != 2110) |> 
   mutate(
-    age_at_status2 = 
+    AGE_AT_STAT2 = 
       INIT_AGE + (as.numeric(STAT2_INIT - INIT_DATE)) / 365.25,
-    group = 
+    
+    INIT_STAT2 = 
       case_when(
-        INIT_STAT2 == 1 ~ 0, # stable
-        INIT_STAT2 == 0 ~ 1  # escalated
+        INIT_STAT == 2120 ~ 0, # Initial Status 2
+        
+        # Until Dr. K confirms with Dr. Wolfson,
+        # we will keep candidates initally at STATUS 2999
+        INIT_STAT %in% c(2130, 2140, 2150, 2160, 2999) ~ 1, # Escalated from 3-6
+        TRUE ~ NA
       ),
+    
     FSTATUS_NEW = 
       case_when(
         FTIME_NEW > 90 ~ 0,
@@ -113,8 +77,10 @@ analysis_data <-
         FTIME_NEW > 90 ~ 90,
         TRUE ~ FTIME_NEW
       )
-  ) 
+  )
 ```
+
+Removing candidates that were initially STATUS 1 (2110) gives us 10174 observations
 
 # Baseline Variates
 
@@ -128,29 +94,24 @@ baseline_variates <-
   
   select(WL_ID_CODE,
          INIT_AGE, 
-         age_at_status2, 
+         AGE_AT_STAT2, 
          GENDER_NEW,
          INIT_BMI_NEW,
          ETHCAT_NEW,
          ETHCAT2_NEW,
          BTYPE_REC,
-         DIAB,     
+         # DIAB,     
          DIAB_Y,   
          VENTILATOR_TCR,
-         PRIOR_CARD_SURG_TCR,
+         # PRIOR_CARD_SURG_TCR,
          PRIOR_CARD_SURG_TCR_Y,
          ISCH_CARD_Y,
          # DIAL_AFTER_LIST,
          # DIAL_AFTER_LIST_Y,
          
-         group, # stable / escalated variable
+         INIT_STAT2, # stable / escalated variable
          
-         
-         # 3. If you are using the `heart3.csv` data as of 08/09/2026, 
-         # make sure to comment out the EXCEPTION variable in the 
-         # same `baseline_variates` pipeline from before.
-         
-         EXCEPTION, # <- <- <- exception variable
+         EXCEPTION_STAT2, # <- <- <- exception variable
          
          FTIME_NEW, # time and event variables
          FSTATUS_NEW,         #
@@ -159,7 +120,7 @@ baseline_variates <-
   mutate(
     across(
       c(INIT_AGE,
-        age_at_status2,
+        AGE_AT_STAT2,
         INIT_BMI_NEW, 
         FTIME_NEW),
       as.numeric
@@ -170,24 +131,24 @@ baseline_variates <-
         ETHCAT_NEW,
         ETHCAT2_NEW,
         BTYPE_REC,
-        DIAB,
+        # DIAB,
         DIAB_Y,
         VENTILATOR_TCR,
-        PRIOR_CARD_SURG_TCR,
+        # PRIOR_CARD_SURG_TCR,
         PRIOR_CARD_SURG_TCR_Y,
         ISCH_CARD_Y,
         # DIAL_AFTER_LIST,
         # DIAL_AFTER_LIST_Y,
-        EXCEPTION,
+        EXCEPTION_STAT2,
         FSTATUS_NEW),
       as.factor
     ),
-    group = factor(group,
+    INIT_STAT2 = factor(INIT_STAT2,
                    levels = c(0,1),
-                   labels = c("Stable", "Escalated")),
-    EXCEPTION = factor(EXCEPTION,
+                   labels = c("Initial Status 2", "Escalated from 3-6")),
+    EXCEPTION_STAT2 = factor(EXCEPTION_STAT2,
                    levels = c(0,1),
-                   labels = c("No", "Yes")),
+                   labels = c("No Exception", "Exception")),
     ETHCAT2_NEW = factor(ETHCAT2_NEW,
                    levels = c("White", "Black", "Hispanic", "Asian", 'Other')),
     event_labels = factor(FSTATUS_NEW,     
@@ -195,14 +156,11 @@ baseline_variates <-
                    labels = c("Death/Deterioration",
                               "Transplantation",
                               "Recovery",
-                              "Upgrade to Status 1",
-                              "Downgrade to Status 3-6",
+                              "Upgraded to Status 1",
+                              "Downgraded to Status 3-6",
                               "Delisted",
                               "Censored"))
   )
-
-str(baseline_variates)
-
 ```
 
 # Baseline Variates with No NA values in any rows
@@ -217,37 +175,6 @@ baseline_variates_no_NA <-
   drop_na()
 ```
 
-## NAs in FSTATUS_NEW Exploration
-
-```{r}
-FSTATUS_NAs <- baseline_variates |> 
-  count(FSTATUS_NEW, name = "n_before") |> 
-  full_join(
-    baseline_variates_no_NA |> 
-      count(FSTATUS_NEW, name = "n_after"),
-    by = "FSTATUS_NEW"
-  ) |> 
-  mutate(
-    n_before = replace_na(n_before, 0),
-    n_after = replace_na(n_after, 0),
-    n_removed = n_before - n_after,
-    percent_removed = 100 * n_removed / n_before
-  ) |> 
-  bind_rows(
-    data.frame(
-      FSTATUS_NEW = "Overall",
-      n_before = nrow(baseline_variates),
-      n_after = nrow(baseline_variates_no_NA),
-      n_removed = nrow(baseline_variates) - nrow(baseline_variates_no_NA),
-      percent_removed = 100 * (
-        nrow(baseline_variates) - nrow(baseline_variates_no_NA)
-      ) / nrow(baseline_variates)
-    )
-  )
-
-kable(FSTATUS_NAs)
-```
-
 # Defining Variables for Models
 
 The `adjusted_variables` are the variables that will be in the formula for the ADJUSTED Cox and Direct Binomial Regression models 
@@ -255,20 +182,22 @@ The `adjusted_variables` are the variables that will be in the formula for the A
 Their adjusted formulas look like this: 
 
 ```
-"Surv(FTIME_NEW, cause) ~ group +",
-          age_at_status2 + GENDER_NEW + ...
+"Surv(FTIME_NEW, cause) ~ INIT_STAT2 +",
+          AGE_AT_STAT2 + GENDER_NEW + ...
 ```
 
 While their unadjusted formulas won't need these variables: 
 
 ```
-Surv(FTIME_NEW, cause) ~ group,
+Surv(FTIME_NEW, cause) ~ INIT_STAT2,
 ```
 
 ```{r}
 adjusted_variables <- c(
   # 'INIT_AGE' ,
-  'age_at_status2' ,  # updated age adjusted to landmark
+  'EXCEPTION_STAT2', # <- exception variable!! comment out if not in baseline_variates!
+  
+  'AGE_AT_STAT2' ,  # updated age adjusted to landmark
   'GENDER_NEW' ,
   'INIT_BMI_NEW' ,
   # 'ETHCAT_NEW' ,
@@ -278,10 +207,7 @@ adjusted_variables <- c(
   'DIAB_Y' ,   # yes/no diabetes indicator
   'VENTILATOR_TCR' ,
   # 'PRIOR_CARD_SURG_TCR' ,
-  'PRIOR_CARD_SURG_TCR_Y' ,  # binary indicator
-
-  'EXCEPTION', # <- exception variable!! comment out if not in baseline_variates!
-
+  'PRIOR_CARD_SURG_TCR_Y' ,  # binary indicator 
   'ISCH_CARD_Y'
 )
 ```
@@ -294,8 +220,8 @@ competing_risks <-
     outcome = c(
       "Death / Deterioration",
       "Transplantation",
-      "Upgrade to Status 1", 
-      "Downgrade to Status 3-6",
+      "Upgraded to Status 1", 
+      "Downgraded to Status 3-6",
       "Delisted"
     ), 
     code = c(1,2,4,5,6)
@@ -321,8 +247,8 @@ The `[[]]` will contain the following outcomes in this order, just like how it i
 
 -   [[1]] = Death/Deterioration
 -   [[2]] = Transplantation
--   [[3]] = Upgrade to Status 1
--   [[4]] = Downgrade to Status 3-6
+-   [[3]] = Upgraded to Status 1
+-   [[4]] = Downgraded to Status 3-6
 -   [[5]] = Delisted
 
 
@@ -338,12 +264,12 @@ make_cox_formula <-
     if (adjusted == T) {
       as.formula(
         paste(
-          "Surv(FTIME_NEW, cause) ~ group +",
+          "Surv(FTIME_NEW, cause) ~ INIT_STAT2 +",
           paste(adjusted_variables, collapse = "+")
         )
       )
     } else {
-      Surv(FTIME_NEW, cause) ~ group
+      Surv(FTIME_NEW, cause) ~ INIT_STAT2
     }
   }
 ```
@@ -400,16 +326,6 @@ fit_cox_model <-
       
     )
   }
-
-
-baseline_variates |> 
-  mutate(
-    age_diff = abs(INIT_AGE - age_at_status2)
-    ) |> 
-      filter(age_diff > 0) |> 
-      arrange(desc(age_diff))
-
-
 ```
 
 ### Run Cox Models
@@ -420,7 +336,7 @@ cox_models <- list(
     map(
       competing_risks$code,
       ~ fit_cox_model(
-        data = baseline_variates_no_NA, 
+        data = baseline_variates, 
         event_code = .x, 
         adjusted = F
       ) 
@@ -428,7 +344,7 @@ cox_models <- list(
   Adjusted = map(
     competing_risks$code,
     ~ fit_cox_model(
-      data = baseline_variates_no_NA,
+      data = baseline_variates,
       event_code = .x,
       adjusted = T
     )
@@ -441,6 +357,8 @@ Death
 ```{r, eval = F}
 summary(cox_models$Unadjusted[[1]]) 
 summary(cox_models$Adjusted[[1]])
+
+
 ```
 Transplantation 
 
@@ -488,7 +406,7 @@ fit_fg_model <-
         covariate_matrix <- model.matrix(
           as.formula(
             paste(
-              "~ group +",
+              "~ INIT_STAT2 +",
               paste(adjusted_variables, collapse = " + ")
             )
           ),
@@ -498,7 +416,7 @@ fit_fg_model <-
       } else {
         
         covariate_matrix <- model.matrix(
-          ~ group,
+          ~ INIT_STAT2,
           data = data
         )[, -1, drop = F]
         
@@ -535,7 +453,7 @@ fg_models <-
       map(
         competing_risks$code,
         ~ fit_fg_model(
-          data = baseline_variates_no_NA,
+          data = baseline_variates,
           event_code = .x,
           adjusted = F
         )
@@ -557,10 +475,8 @@ Summaries
 Death
 
 ```{r, eval = F}
-
 summary(fg_models$Unadjusted[[1]])
 summary(fg_models$Adjusted[[1]])
-
 ```
 
 Transplantation
@@ -568,7 +484,6 @@ Transplantation
 ```{r, eval = F}
 summary(fg_models$Unadjusted[[2]])
 summary(fg_models$Adjusted[[2]])
-
 ```
 
 Upgraded to Status 1
@@ -600,26 +515,26 @@ summary(fg_models$Adjusted[[5]])
 
 ## DBR Formula
 
-```{r}
+```{r, eval = F }
 make_binreg_formula <- 
   function(adjusted = F) { 
     
     if (adjusted == T) {
       as.formula(
         paste(
-          "Event(FTIME_NEW, cause) ~ group +",
+          "Event(FTIME_NEW, cause) ~ INIT_STAT2 +",
           paste(adjusted_variables, collapse = "+")
         )
       )
     } else {
-      Event(FTIME_NEW, cause) ~ group
+      Event(FTIME_NEW, cause) ~ INIT_STAT2
     }
   }
 ```
 
 ## Fit DBR Model
 
-```{r}
+```{r, eval = F}
 fit_binreg_model <- 
   function(data, event_code, adjusted = F, time = 90) {
     
@@ -670,7 +585,7 @@ fit_binreg_model <-
 
 ### Rrun DBR Models
 
-```{r}
+```{r, eval = F}
 binreg_models <- 
   list(
     Unadjusted = 
@@ -701,6 +616,7 @@ summary(binreg_models$Unadjusted[[1]])
 summary(binreg_models$Adjusted[[1]])
 ```
 
+
 ```{r, eval = F}
 summary(binreg_models$Unadjusted[[2]])
 summary(binreg_models$Adjusted[[2]])
@@ -724,9 +640,10 @@ summary(binreg_models$Adjusted[[5]])
 ```
 
 
+
+
+
 # Extracting information from models for Kable Tables
-
-
 
 ## Cox info extraction
 
@@ -743,10 +660,12 @@ extract_cox <- function(model, outcome, adjustment) {
         Model = "Cause-Specific Cox",
         Outcome = outcome,
         Adjustment = adjustment,
-        Estimate = NA_real_,
-        Lower = NA_real_,
-        Upper = NA_real_,
-        P = NA_real_
+        Variable = NA,
+        Estimate = NA,
+        Lower = NA,
+        Upper = NA,
+        P = NA, 
+        N = NA
       )
     )
   }
@@ -761,10 +680,12 @@ extract_cox <- function(model, outcome, adjustment) {
       Model = "Cause-Specific Cox",
       Outcome = outcome,
       Adjustment = adjustment,
-      Estimate = s$conf.int[1, "exp(coef)"],
-      Lower    = s$conf.int[1, "lower .95"],
-      Upper    = s$conf.int[1, "upper .95"],
-      P        = s$coefficients[1, "Pr(>|z|)"]
+      Variable = rownames(s$coefficients),
+      Estimate = s$conf.int[, "exp(coef)"],
+      Lower    = s$conf.int[, "lower .95"],
+      Upper    = s$conf.int[, "upper .95"],
+      P        = s$coefficients[, "Pr(>|z|)"],
+      N        = model$n
     )
     
     
@@ -775,10 +696,12 @@ extract_cox <- function(model, outcome, adjustment) {
       Model = "Cause-Specific Cox",
       Outcome = outcome,
       Adjustment = adjustment,
-      Estimate = NA_real_,
-      Lower = NA_real_,
-      Upper = NA_real_,
-      P = NA_real_
+      Variable = NA,
+      Estimate = NA,
+      Lower = NA,
+      Upper = NA,
+      P = NA,
+      N = NA
     )
   }) 
 }
@@ -795,10 +718,12 @@ extract_fg <- function(model, outcome, adjustment) {
         Model = "Fine-Gray Subdistribution",
         Outcome = outcome,
         Adjustment = adjustment,
-        Estimate = NA_real_,
-        Lower = NA_real_,
-        Upper = NA_real_,
-        P = NA_real_
+        Variable = NA,
+        Estimate = NA,
+        Lower = NA,
+        Upper = NA,
+        P = NA,
+        N = NA
       )
     )
   }
@@ -811,20 +736,25 @@ extract_fg <- function(model, outcome, adjustment) {
       Model = "Fine-Gray Subdistribution",
       Outcome = outcome,
       Adjustment = adjustment,
-      Estimate = s$conf.int[1, "exp(coef)"],
-      Lower = s$conf.int[1, "2.5%"],
-      Upper = s$conf.int[1, "97.5%"],
-      P = s$coef[1, "p-value"]
+      Variable = rownames(s$coef),
+      Estimate = s$conf.int[, "exp(coef)"],
+      Lower = s$conf.int[, "2.5%"],
+      Upper = s$conf.int[, "97.5%"],
+      P = s$coef[, "p-value"],
+      N = model$n
+      
     )
   }, error = function(e) {
     data.frame(
       Model = "Fine-Gray Subdistribution",
       Outcome = outcome,
       Adjustment = adjustment,
-      Estimate = NA_real_,
-      Lower = NA_real_,
-      Upper = NA_real_,
-      P = NA_real_
+      Variable = NA,
+      Estimate = NA,
+      Lower = NA,
+      Upper = NA,
+      P = NA,
+      N = NA
     )
   })
 }
@@ -832,7 +762,7 @@ extract_fg <- function(model, outcome, adjustment) {
 
 ## DBR extraction
 
-```{r}
+```{r, eval = F}
 extract_binreg <- function(model, outcome, adjustment) {
   
   if (is.null(model)) {
@@ -841,10 +771,11 @@ extract_binreg <- function(model, outcome, adjustment) {
         Model = "Direct Binomial Regression",
         Outcome = outcome,
         Adjustment = adjustment,
-        Estimate = NA_real_,
-        Lower = NA_real_,
-        Upper = NA_real_,
-        P = NA_real_
+        Estimate = NA,
+        Lower = NA,
+        Upper = NA,
+        P = NA
+        N = NA
       )
     )
   }
@@ -860,7 +791,8 @@ extract_binreg <- function(model, outcome, adjustment) {
       Estimate = s$exp[2, "Estimate"],
       Lower = s$exp[2, "2.5%"],
       Upper = s$exp[2, "97.5%"],
-      P = s$coef[2, "P-value"]
+      P = s$coef[2, "P-value"],
+      N = model$n
     )
     
   }, error = function(e) {
@@ -869,14 +801,19 @@ extract_binreg <- function(model, outcome, adjustment) {
       Model = "Direct Binomial Regression",
       Outcome = outcome,
       Adjustment = adjustment,
-      Estimate = NA_real_,
-      Lower = NA_real_,
-      Upper = NA_real_,
-      P = NA_real_
+      Estimate = NA,
+      Lower = NA,
+      Upper = NA,
+      P = NA,
+      N = NA
     )
   })
 }
 ```
+
+
+
+
 
 # Making the dataframes for the tables
 
@@ -896,13 +833,13 @@ unadjusted_results <-
       fg_models$Unadjusted,
       competing_risks$outcome,
       ~ extract_fg(.x, .y, "Unadjusted")
-    ),
-    
-    map2_dfr(
-      binreg_models$Unadjusted,
-      competing_risks$outcome,
-      ~extract_binreg(.x, .y, "Unadjusted")
     )
+    
+    # map2_dfr(
+    #   binreg_models$Unadjusted,
+    #   competing_risks$outcome,
+    #   ~extract_binreg(.x, .y, "Unadjusted")
+    # )
   )
 ```
 
@@ -922,24 +859,30 @@ adjusted_results <-
       fg_models$Adjusted,
       competing_risks$outcome,
       ~ extract_fg(.x, .y, "Adjusted")
-    ),
-    # DBR Model info
-    map2_dfr(
-      binreg_models$Adjusted,
-      competing_risks$outcome,
-      ~extract_binreg(.x, .y, "Adjusted")
     )
+    # # DBR Model info
+    # map2_dfr(
+    #   binreg_models$Adjusted,
+    #   competing_risks$outcome,
+    #   ~extract_binreg(.x, .y, "Adjusted")
+    # )
   )
 ```
 
 # Kable Table Making
 
+I have code here for four tables:
+
+The first unadjusted table code and adjusted table code makes a table that does not include the Direct Binomial Regression results
+
+The second set of codes do include the Direct Binomial Results, but its code chunk is set to `eval = F` so it shouldn't be ran when rendering
+
 ## Unadjusted Kable
 
-```{r}
-kable_table_unadjusted <- 
+```{r, eval = F}
+kable_table_unadjusted <-
   unadjusted_results |>
-  filter(Model != "Direct Binomial Regression") |> 
+  # filter(Model != "Direct Binomial Regression") |>
   mutate(
     Estimate = round(Estimate, 3),
     CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
@@ -949,28 +892,28 @@ kable_table_unadjusted <-
    kable(
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
-                  
+
     caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 2. Unadjusted Escalated Effect Estimates for Waitlist Outcomes at 90 Days</span>",
-  ) |> 
+  ) |>
   kable_styling(
     full_width = T,
     # position = 'left',
     font_size = 19
-  ) |> 
-   add_header_above(
-    c("Models do not include Group*Exception interaction" = 4),
-    bold = T,
-    font_size = 15
   ) |>
-  column_spec(1, width = '10em', bold = T, color = "black") |> 
-  column_spec(2:4, width = "7em", bold = F, color = "black") |> 
-  
+  #  add_header_above(
+  #   c("Models do not include Group*Exception interaction" = 4),
+  #   bold = T,
+  #   font_size = 15
+  # ) |>
+  column_spec(1, width = '10em', bold = T, color = "black") |>
+  column_spec(2:4, width = "7em", bold = F, color = "black") |>
+
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
   pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10)
 ```
 
 ```{r, eval = F}
-kable_table_unadjusted <- 
+kable_table_unadjusted <-
   unadjusted_results |>
   mutate(
     Estimate = round(Estimate, 3),
@@ -981,34 +924,34 @@ kable_table_unadjusted <-
    kable(
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
-                  
+
     caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 2. Unadjusted Escalated Effect Estimates for Waitlist Outcomes at 90 Days</span>",
-  ) |> 
+  ) |>
   kable_styling(
     full_width = T,
     # position = 'left',
     font_size = 19
-  ) |> 
+  ) |>
    add_header_above(
     c("Models do not include Group*Exception interaction" = 4),
     bold = T,
     font_size = 15
   ) |>
-  column_spec(1, width = '10em', bold = T, color = "black") |> 
-  column_spec(2:4, width = "7em", bold = F, color = "black") |> 
-  
+  column_spec(1, width = '10em', bold = T, color = "black") |>
+  column_spec(2:4, width = "7em", bold = F, color = "black") |>
+
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
-  
-  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) |> 
+
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) |>
   pack_rows("Direct Binomial Regression Model (OR*)", 11, 15)
 ```
 
 ## Adjusted Kable
 
-```{r}
-kable_table_adjusted <- 
+```{r, eval = F}
+kable_table_adjusted <-
   adjusted_results |>
-  filter(Model != "Direct Binomial Regression") |> 
+  # filter(Model != "Direct Binomial Regression") |>
   mutate(
     Estimate = round(Estimate, 3),
     CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
@@ -1018,27 +961,27 @@ kable_table_adjusted <-
   kable(
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
-                  
+
     caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 3. Adjusted Escalated Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
   ) |>
   kable_styling(
     full_width = T,
     position = 'left',
     font_size = 19
-  ) |> 
-   add_header_above(
-    c("Models do not include Group*Exception interaction" = 4),
-    bold = T,
-    font_size = 15
   ) |>
-  column_spec(1, bold = T, color = "black") |> 
-  column_spec(2:4, bold = F, color = "black") |> 
+  #  add_header_above(
+  #   c("Models do not include Group*Exception interaction" = 4),
+  #   bold = T,
+  #   font_size = 15
+  # ) |>
+  column_spec(1, bold = T, color = "black") |>
+  column_spec(2:4, bold = F, color = "black") |>
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
-  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) 
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10)
 ```
 
 ```{r, eval = F}
-kable_table_adjusted <- 
+kable_table_adjusted <-
   adjusted_results |>
   mutate(
     Estimate = round(Estimate, 3),
@@ -1049,39 +992,92 @@ kable_table_adjusted <-
   kable(
     col.names = c("Outcome", "Estimate**", "95% CI", "p-value"),
     align = c("l", "c", "c", "c"),
-                  
+
     caption = "<span style='font-size:25px; text-align:center; font-weight:bold; display:block;'>Table 3. Adjusted Escalated Effect Estimates for Waitlist at Outcomes at 90 Days</span>",
   ) |>
   kable_styling(
     full_width = T,
     position = 'left',
     font_size = 19
-  ) |> 
+  ) |>
    add_header_above(
     c("Models do not include Group*Exception interaction" = 4),
     bold = T,
     font_size = 15
   ) |>
-  column_spec(1, bold = T, color = "black") |> 
-  column_spec(2:4, bold = F, color = "black") |> 
+  column_spec(1, bold = T, color = "black") |>
+  column_spec(2:4, bold = F, color = "black") |>
   pack_rows("Cause-Specific Cox Model (HR*)", 1, 5) |>
-  
-  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) |> 
-  
-  pack_rows("Direct Binomial Regression Model (OR*)", 11, 15) 
+
+  pack_rows("Fine-Gray Subdistribution Model (SHR*)", 6, 10) |>
+
+  pack_rows("Direct Binomial Regression Model (OR*)", 11, 15)
 ```
 
 ## Show and Save Kables
 
-```{r}
+```{r, eval = F}
 kable_table_unadjusted
 kable_table_adjusted
 ```
 
 
-```{r}
+```{r, eval = F}
+Sys.setenv(
+  CHROMOTE_CHROME =
+    "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+)
+```
+
+
+
+```{r, eval = F}
 save_kable(kable_table_unadjusted, file = "tables/new_unadjusted_results_table_DRAFT.png")
 save_kable(kable_table_adjusted, file = "tables/new_adjusted_results_table_DRAFT.png")
 ```
+
+
+
+
+# Table Making
+
+```{r}
+results_xlsx <-
+  unadjusted_results |> 
+  rbind(adjusted_results) |> 
+  mutate(Estimate = round(Estimate, 3), 
+         CI = paste0("(", round(Lower, 3), " , ", round(Upper, 3), ")"),
+         P = ifelse(P < 0.001, "p < 0.001", round(P, 3))
+  ) |> 
+  select(-Lower, -Upper) |> 
+  rename(HR = Estimate, `p-value` = P) |> 
+  select(1:5, 8, 6:7)
+
+rownames(results_xlsx) <- NULL
+```
+
+```{r}
+write_xlsx(results_xlsx, "init_stat2_results_082826.xlsx")
+```
+
+# Model Summary Extraction
+
+Not functionalized yet, very copy/paste heavy
+
+You need to change the model list variable and number in summary(<cox_models>$<Adjusted[[<1>]]) to get the summary for other models
+
+```{r}
+model_summary <- summary(cox_models$Adjusted[[1]])
+
+results <- as.data.frame(model_summary$coefficients)
+
+results <- results |>
+  rownames_to_column("Variable")
+
+# write_xlsx(results, "model_summary.xlsx")
+
+```
+
+
 
 
